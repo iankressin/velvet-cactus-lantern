@@ -70,6 +70,19 @@ def test_erc20_transfers_reads_each_chain_through_its_own_model():
         }
 
 
+def test_tokens_reads_each_chain_through_its_own_model():
+    graph = defs.resolve_asset_graph()
+    assert graph.get(dg.AssetKey("tokens")).parent_keys == {
+        dg.AssetKey("int_ethereum_erc20_metadata"),
+        dg.AssetKey("int_arbitrum_erc20_metadata"),
+        dg.AssetKey("int_base_erc20_metadata"),
+        dg.AssetKey("int_solana_spl_metadata"),
+    }
+    assert graph.get(dg.AssetKey("int_solana_spl_metadata")).parent_keys == {
+        dg.AssetKey("stg_solana__spl_metadata"),
+    }
+
+
 def test_every_asset_and_check_runs_in_a_scheduled_pipeline():
     graph = defs.resolve_asset_graph()
     scheduled = {schedule.job_name for schedule in defs.schedules}

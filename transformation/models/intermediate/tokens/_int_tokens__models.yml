@@ -16,3 +16,24 @@ models:
     columns:
       - name: id
         data_tests: [unique, not_null]
+  - name: int_solana_spl_metadata
+    description: Solana mint metadata readings in the shape the tokens mart reads.
+    columns:
+      - name: id
+        data_tests: [unique, not_null]
+
+unit_tests:
+  - name: a_token_2022_name_wins_over_metaplex
+    description: The Token-2022 extension's name and symbol win; Metaplex fills the gaps; the mint keeps its case; the slot is the block.
+    model: int_solana_spl_metadata
+    given:
+      - input: ref('stg_solana__spl_metadata')
+        rows:
+          - {id: "7:2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo", slot: 7, mint: "2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo", decimals: 6, token_2022_name: "PayPal USD", token_2022_symbol: "PYUSD", metaplex_name: "Old Name", metaplex_symbol: "OLD"}
+          - {id: "7:EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", slot: 7, mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", decimals: 6, token_2022_name: null, token_2022_symbol: null, metaplex_name: "USD Coin", metaplex_symbol: "USDC"}
+          - {id: "7:9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM", slot: 7, mint: "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM", decimals: null, token_2022_name: null, token_2022_symbol: null, metaplex_name: null, metaplex_symbol: null}
+    expect:
+      rows:
+        - {id: "7:2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo", chain: solana, token: "2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo", name: "PayPal USD", symbol: "PYUSD", decimals: 6, block_number: 7}
+        - {id: "7:EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", chain: solana, token: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", name: "USD Coin", symbol: "USDC", decimals: 6, block_number: 7}
+        - {id: "7:9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM", chain: solana, token: "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM", name: null, symbol: null, decimals: null, block_number: 7}

@@ -3,8 +3,9 @@ version: 2
 models:
   - name: tokens
     description: >-
-      Each token's latest name, symbol and decimals, one row per chain and token in evm-erc20-metadata's
-      addresses.json. Symbols are not unique, even on one chain, so key on chain and token, never on symbol.
+      Each token's latest name, symbol and decimals, one row per chain and token in the addresses.json of
+      evm-erc20-metadata and solana-spl-metadata. Symbols are not unique, even on one chain, so key on chain
+      and token, never on symbol.
     data_tests:
       - unique:
           arguments:
@@ -16,21 +17,25 @@ models:
           - not_null
           - accepted_values:
               arguments:
-                values: [ethereum, arbitrum, base]
+                values: [ethereum, arbitrum, base, solana]
       - name: token
-        description: The token's contract address, lowercased.
+        description: >-
+          The token's contract address, lowercased. On Solana, the mint as written, since base58 is
+          case-sensitive.
         data_tests: [not_null]
       - name: name
         description: >-
           What name() returned, as text. A bytes32 reply is decoded too, without its zero bytes. Null when
-          name() reverted or returned nothing.
+          name() reverted or returned nothing. On Solana, the mint's Token-2022 metadata extension, else its
+          Metaplex metadata account; null when neither has one.
       - name: symbol
         description: >-
           What symbol() returned, as text, decoded like name. Null when symbol() reverted or returned
-          nothing. Two tokens can share a symbol.
+          nothing. On Solana, the mint's Token-2022 metadata extension, else its Metaplex metadata account;
+          null when neither has one. Two tokens can share a symbol.
       - name: decimals
         description: >-
           What decimals() returned. Null means the contract has no decimals(), which ERC-20 allows; never
-          assume 18.
+          assume 18. On Solana, the mint's decimals; null when the address is not a mint.
       - name: block_number
-        description: The block this reading was taken at.
+        description: The block this reading was taken at. On Solana, the slot.
