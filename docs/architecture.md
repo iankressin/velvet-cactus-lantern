@@ -39,9 +39,8 @@ Every source above is a call source. No stream source ships now.
 │   ├── lib/                    # @ingestion/lib: shared by all sources
 │   │   └── src/
 │   │       ├── index.ts        # public API for any chain
-│   │       ├── source.ts       # Source and StreamSource interfaces
-│   │       ├── portal.ts       # Portal client and finalized head, for stream sources
-│   │       ├── warehouse/      # every Postgres write: raw tables, dead letters, cursors, the run log
+│   │       ├── source.ts       # the Source interface
+│   │       ├── warehouse/      # every Postgres write: raw tables, dead letters, the run log
 │   │       ├── evm/            # @ingestion/lib/evm: env, addresses, client, connect()
 │   │       ├── solana/         # @ingestion/lib/solana: env, addresses, client
 │   │       ├── bitcoin/        # @ingestion/lib/bitcoin: env, addresses, client
@@ -191,7 +190,7 @@ A **call source** makes calls, such as RPC reads at one block, and its `src/sour
 - `extract` reads its addresses inside the run, `addresses.json` with `readJson` from `@ingestion/lib` or the wallet asset CSV with `readWalletAssets` from `@ingestion/lib/wallet-assets`, so a bad file fails the run and `runSource` logs why.
 - `name` and `table` match the dbt source and table and the entry in `sources.json`, as above.
 
-A **stream source** reads blocks through a [Pipes](https://docs.sqd.dev/en/sdk/pipes-sdk) stream instead of making calls. No stream source ships now, so `bj new-source` has none to copy. Its `src/source.ts` exports a `StreamSource`, whose `stream(env)` returns the stream. Map the stream's outputs to records with `.pipe()`, and end its range at `finalizedHead(portalClient(url))` so each run ends. `runSource` pipes the stream into the warehouse, where Pipes keeps the source's cursor in `raw._sync` and saves it in the same transaction as the batch's records. Each run resumes after the cursor and reads at most `maxBlocksPerRun` blocks, plus the rest of the batch that passes it. A stream source has no calls, so it has no dead letters: an error, from Portal or from the warehouse, fails the run, nothing from the batch it was writing commits, and the next run resumes after the last batch that did. To read a stream source again from its start, delete its row from `raw._sync`, whose `id` is `<source>_<table>`.
+`runSource` runs only call sources. It cannot run a **stream source**, which reads blocks through a [Pipes](https://docs.sqd.dev/en/sdk/pipes-sdk) stream instead of making calls.
 
 ## Add a pipeline
 
