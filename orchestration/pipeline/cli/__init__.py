@@ -40,7 +40,7 @@ def _install(args: argparse.Namespace) -> int:
 def _run(args: argparse.Namespace) -> int:
     from pipeline.cli import run
 
-    return run.run(REPO_ROOT, args.pipeline)
+    return run.run(REPO_ROOT, args.pipeline, args.wallet_assets)
 
 
 def parser() -> argparse.ArgumentParser:
@@ -87,6 +87,11 @@ def parser() -> argparse.ArgumentParser:
         "Exits 1 when the run fails, naming the steps that failed.",
     )
     run.add_argument("pipeline")
+    run.add_argument(
+        "--wallet-assets",
+        metavar="CSV",
+        help="the wallet asset CSV every source reads in this run, in place of WALLET_ASSETS_CSV",
+    )
     run.set_defaults(run=_run)
 
     return root

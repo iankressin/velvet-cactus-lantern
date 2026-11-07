@@ -1,25 +1,28 @@
 import os
+from collections.abc import Mapping
 from contextlib import closing
 
 import psycopg2
 from psycopg2 import sql
 
 
-def connect():
+def connect(env: Mapping[str, str] | None = None):
     """A connection to the warehouse, from the WAREHOUSE_* settings that dbt and ingestion also read."""
+    env = os.environ if env is None else env
     return psycopg2.connect(
-        host=os.environ["WAREHOUSE_HOST"],
-        port=os.environ["WAREHOUSE_PORT"],
-        user=os.environ["WAREHOUSE_USER"],
-        password=os.environ["WAREHOUSE_PASSWORD"],
-        dbname=os.environ["WAREHOUSE_DB"],
+        host=env["WAREHOUSE_HOST"],
+        port=env["WAREHOUSE_PORT"],
+        user=env["WAREHOUSE_USER"],
+        password=env["WAREHOUSE_PASSWORD"],
+        dbname=env["WAREHOUSE_DB"],
     )
 
 
-def count_dead_letters(source_table: str) -> tuple[int, int]:
+def count_dead_letters(source_table: str, env: Mapping[str, str] | None = None) -> tuple[int, int]:
     """(pending, parked) dead letters for one raw table. Ingestion creates the table on first run."""
-    schema = os.environ["RAW_SCHEMA"]
-    with closing(connect()) as connection, connection.cursor() as cursor:
+    env = os.environ if env is None else env
+    schema = env["RAW_SCHEMA"]
+    with closing(connect(env)) as connection, connection.cursor() as cursor:
         cursor.execute("select to_regclass(%s)", (f'"{schema}"._dead_letters',))
         if cursor.fetchone()[0] is None:
             return 0, 0

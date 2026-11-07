@@ -53,12 +53,23 @@ def root_cause(error):
     return error
 
 
-def materialize(defs: dg.Definitions, pipelines: Collection[str], name: str) -> int:
+def wallet_assets_config(path: str | None) -> dict:
+    """Run config that points every source at one wallet asset CSV, by its absolute path: each source
+    reads the file from its own package folder."""
+    if path is None:
+        return {}
+    csv = Path(path).resolve()
+    if not csv.is_file():
+        raise BadInput(f"no wallet asset CSV at {csv}")
+    return {"resources": {"ingestion_env": {"config": {"WALLET_ASSETS_CSV": str(csv)}}}}
+
+
+def materialize(defs: dg.Definitions, pipelines: Collection[str], name: str, run_config: dict | None = None) -> int:
     if name not in pipelines:
         raise BadInput(f"no pipeline named {name!r}; pipelines: {', '.join(pipelines)}")
     # With DAGSTER_HOME set, the run lands in the same history `dagster dev` shows.
     instance = dg.DagsterInstance.get() if os.environ.get("DAGSTER_HOME") else None
-    result = defs.resolve_job_def(name).execute_in_process(instance=instance, raise_on_error=False)
+    result = defs.resolve_job_def(name).execute_in_process(run_config=run_config or {}, instance=instance, raise_on_error=False)
     if result.success:
         print(f"{name}: run {result.run_id} succeeded")
         return 0
@@ -72,7 +83,8 @@ def materialize(defs: dg.Definitions, pipelines: Collection[str], name: str) -> 
     return 1
 
 
-def run(repo_root: Path, name: str) -> int:
+def run(repo_root: Path, name: str, wallet_assets: str | None = None) -> int:
+    run_config = wallet_assets_config(wallet_assets)
     parse_project(repo_root / "transformation")
     defs, pipelines = load_definitions()
-    return materialize(defs, pipelines, name)
+    return materialize(defs, pipelines, name, run_config)
