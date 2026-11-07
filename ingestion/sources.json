@@ -1,17 +1,5 @@
 [
   {
-    "name": "arbitrum",
-    "table": "erc20_metadata",
-    "package": "evm-erc20-metadata",
-    "settings": "chains/arbitrum"
-  },
-  {
-    "name": "base",
-    "table": "erc20_metadata",
-    "package": "evm-erc20-metadata",
-    "settings": "chains/base"
-  },
-  {
     "name": "bitcoin",
     "table": "btc_balances",
     "package": "bitcoin-btc-balances"

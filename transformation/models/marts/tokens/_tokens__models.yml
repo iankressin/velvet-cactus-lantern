@@ -18,7 +18,7 @@ models:
           - not_null
           - accepted_values:
               arguments:
-                values: [ethereum, arbitrum, base, solana]
+                values: [ethereum, solana]
       - name: token
         description: >-
           The token's contract address, lowercased. On Solana, the mint as written, since base58 is

@@ -187,8 +187,8 @@ def copy_package(repo, package):
 
 
 def test_copies_a_package_that_loads_several_chains_with_only_the_new_chain(repo, pnpm, capsys):
-    # evm-erc20-metadata loads arbitrum, base and ethereum, each with an addresses.json.
     template = copy_package(repo, "evm-erc20-metadata")
+    shutil.copytree(template / "chains/ethereum", template / "chains/base")
     (template / "chains/ethereum/.env").write_text("EVM_RPC_URL=http://secret\n")
     (template / "chains/ethereum/factory.sqlite").write_bytes(b"pools of another source")
 
@@ -217,15 +217,15 @@ def test_a_chain_the_template_lacks_starts_as_a_copy_of_another(repo, pnpm, caps
 
     assert run(repo, "polygon", "erc721_holdings", "evm-erc20-metadata") == 0
 
-    # The template's first chain in sources.json is arbitrum.
+    # The template's first chain in sources.json is ethereum.
     chain = repo / "ingestion/sources/evm-erc721-holdings/chains/polygon"
     for name in (".env.example", "addresses.json"):
-        assert (chain / name).read_text() == (template / "chains/arbitrum" / name).read_text()
+        assert (chain / name).read_text() == (template / "chains/ethereum" / name).read_text()
     assert ("polygon", "erc721_holdings") in sources_of(repo)
     out = capsys.readouterr().out
     assert (
         "created ingestion/sources/evm-erc721-holdings/chains/polygon/ "
-        "(a copy of ingestion/sources/evm-erc20-metadata/chains/arbitrum/)"
+        "(a copy of ingestion/sources/evm-erc20-metadata/chains/ethereum/)"
     ) in out
     assert "Set ingestion/sources/evm-erc721-holdings/chains/polygon/.env.example for polygon" in out
 
