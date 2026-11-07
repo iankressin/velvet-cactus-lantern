@@ -23,7 +23,7 @@ When something breaks, you can see it. `bj doctor` checks your env and services 
 | You need | What ships |
 |---|---|
 | Point-in-time balances | ETH, ERC-20, SOL, SPL, BTC → `analytics.latest_balances` |
-| The balances you asked for, as a file | One row per line of `input/wallet-assets.csv` → `analytics.requested_balances` → `output/balances.csv` |
+| The balances you asked for, as a file | One row per line of `input/wallet-assets.csv` → `analytics.requested_balances` → `output/<run_id>_balances.csv` |
 | Token metadata | Name, symbol and decimals of listed ERC-20 tokens on Ethereum and SPL tokens on Solana → `analytics.tokens` |
 | How it runs | TypeScript extract/load → dbt → Dagster, plus Docker for the warehouse, eRPC, Dshackle and monitoring |
 | How you drive it | The `bj` CLI (`install`, `dev`, `doctor`, `run`) and the Dagster UI |
@@ -64,7 +64,7 @@ When Dagster is up, open http://localhost:3000 and materialize the assets you ne
 1. Set up once with `bj install`, start the stack and Dagster with `bj dev`, then open the Dagster UI.
 2. List the wallets and tokens whose balances you want in `input/wallet-assets.csv`, one `blockchain,wallet_address,token_address` row each, with `token_address` empty for the native asset. Each balance source reads its own rows from it, and `evm-erc20-metadata` and `solana-spl-metadata` read the decimals of each token in it.
 3. Materialize the balances pipeline on a schedule you choose.
-4. Read `output/balances.csv`, which each balances run rewrites, or query `analytics.latest_balances` in the warehouse.
+4. Read `output/<run_id>_balances.csv`, a new file for each balances run, named by the run id that `bj run` prints and the Dagster UI shows. Or query `analytics.latest_balances` in the warehouse.
 5. When the brief changes, add a source, a chain or [your own pipeline](#add-your-own-pipeline).
 
 A new analyst should be able to get through these steps in an afternoon.
