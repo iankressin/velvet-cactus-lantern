@@ -5,9 +5,26 @@ from collections.abc import Collection
 from pathlib import Path
 
 import dagster as dg
+from dbt.cli.main import dbtRunner, dbtRunnerResult
 
 from pipeline.cli import BadInput
-from pipeline.cli.answer import dbt, dbt_error
+
+# dbt's own logs and usage stats are off: the summary reports what matters, and the stats call the network.
+DBT_FLAGS = ("--log-level", "none", "--no-send-anonymous-usage-stats")
+
+
+def dbt(project: Path, *args: str) -> dbtRunnerResult:
+    return dbtRunner().invoke([*args, "--project-dir", str(project), "--profiles-dir", str(project), *DBT_FLAGS])
+
+
+def dbt_error(result: dbtRunnerResult) -> str:
+    if result.exception is not None:
+        message = str(result.exception)
+    else:
+        message = "; ".join(
+            f"{r.node.name}: {r.message}" for r in result.result.results if str(r.status) in ("error", "fail")
+        )
+    return " ".join(message.split()) or "unknown error"
 
 
 def parse_project(project: Path) -> None:
