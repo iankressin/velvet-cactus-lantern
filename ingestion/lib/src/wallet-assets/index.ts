@@ -1,3 +1,4 @@
+export { evmBlockchain, walletAssetsEnv, type WalletAssetsEnv } from "#src/wallet-assets/env.ts";
 export {
   readWalletAssets,
   type AssetType,
