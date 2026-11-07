@@ -83,13 +83,23 @@ const ledger =
 // No transport retries, so a failed request fails at once rather than after the backoff.
 const rpcAt = (url: string) => createSolanaClient(url, { retryCount: 0 });
 
+/** A wallet asset row as the CSV lists it: a wallet and one mint. */
+const held = (walletAddress: Address, tokenAddress: Address) => ({ walletAddress, tokenAddress });
+
+test("makes one call per listed wallet and mint, not one per wallet for every mint", () => {
+  assert.deepEqual(balanceCalls([held(walletA, mint), held(walletB, unknownMint)]), [
+    { kind: "spl_balance", mint, wallet: walletA },
+    { kind: "spl_balance", mint: unknownMint, wallet: walletB },
+  ]);
+});
+
 test("sums a wallet's token accounts for a mint, and records 0 when it has none", async (t) => {
   const url = await fakeRpc(
     t,
     ledger({ [`${mint}:${walletA}`]: ["9007199254740993", "1"] }),
   );
 
-  const batch = await fetchBalances(rpcAt(url), balanceCalls([walletA, walletB], [mint]));
+  const batch = await fetchBalances(rpcAt(url), balanceCalls([held(walletA, mint), held(walletB, mint)]));
 
   assert.deepEqual(batch, {
     records: [
@@ -111,7 +121,7 @@ test("sums a wallet's token accounts for a mint, and records 0 when it has none"
 test("queues the call that fails and keeps the others", async (t) => {
   const url = await fakeRpc(t, ledger({ [`${mint}:${walletA}`]: ["5"] }));
 
-  const batch = await fetchBalances(rpcAt(url), balanceCalls([walletA], [mint, unknownMint]));
+  const batch = await fetchBalances(rpcAt(url), balanceCalls([held(walletA, mint), held(walletA, unknownMint)]));
 
   assert.deepEqual(
     batch.records.map(({ id }) => id),
