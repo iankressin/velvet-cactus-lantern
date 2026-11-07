@@ -8,6 +8,7 @@ import {
   type EvmClient,
   type EvmEnv,
 } from "@ingestion/lib/evm";
+import { evmBlockchain, readWalletAssets, walletAssetsEnv, type WalletAssetsEnv } from "@ingestion/lib/wallet-assets";
 import {
   BaseError,
   RawContractError,
@@ -105,19 +106,32 @@ export const fetchMetadata = (client: EvmClient, calls: readonly MetadataCall[])
   });
 
 /**
- * The name, symbol and decimals of every token in chains/<chain>/addresses.json at BLOCK_NUMBER, plus
- * the calls that failed in earlier runs, at their own blocks. The source is named for its chain, so
- * each chain loads into raw.<chain>_erc20_metadata.
+ * The chain's erc20 tokens in the wallet asset CSV at `path`. A chain the CSV cannot hold yet, such as
+ * base, has none, and the file is not opened: unlike a balance source, this source still has the chain's
+ * addresses.json to read.
  */
-export const forChain = (chain: string): Source<EvmEnv, MetadataCall> => ({
+function csvTokens(path: string, chain: string): Address[] {
+  const blockchain = evmBlockchain.safeParse(chain);
+  if (!blockchain.success) return [];
+  return readWalletAssets(path, blockchain.data, "erc20").map(({ tokenAddress }) => tokenAddress);
+}
+
+/**
+ * The name, symbol and decimals of every token in the chain's erc20 rows of the wallet asset CSV and in
+ * chains/<chain>/addresses.json, at BLOCK_NUMBER, plus the calls that failed in earlier runs, at their
+ * own blocks. A token in both lists, or in many rows, is read once. The source is named for its chain,
+ * so each chain loads into raw.<chain>_erc20_metadata.
+ */
+export const forChain = (chain: string): Source<EvmEnv & WalletAssetsEnv, MetadataCall> => ({
   name: chainName.parse(chain),
   table: "erc20_metadata",
-  env: evmEnv,
+  env: evmEnv.extend(walletAssetsEnv.shape),
   call: metadataCallSchema,
   async *extract(env, retry) {
-    // Read inside the run, not at import, so runSource reports a bad addresses.json.
+    // Read inside the run, not at import, so runSource reports a bad file.
+    const fromCsv = csvTokens(env.WALLET_ASSETS_CSV, chain);
     const list = readJson(`chains/${chain}/addresses.json`);
-    const tokens = validateEthAddressList(list.tokens);
+    const tokens = [...fromCsv, ...validateEthAddressList(list.tokens)];
     const { client, block } = await connect(env);
     yield await fetchMetadata(client, [...metadataCallsAt(block, tokens), ...retry]);
   },
