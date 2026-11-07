@@ -27,10 +27,12 @@ def test_ingestion_assets_have_dead_letter_check(source, table):
 
 def test_mart_reads_each_chain_through_its_intermediate_model():
     graph = defs.resolve_asset_graph()
+    # tokens supplies the decimals of ERC-20 and SPL tokens.
     assert graph.get(dg.AssetKey("latest_balances")).parent_keys == {
         dg.AssetKey("int_ethereum_balances"),
         dg.AssetKey("int_solana_balances"),
         dg.AssetKey("int_bitcoin_balances"),
+        dg.AssetKey("tokens"),
     }
     assert graph.get(dg.AssetKey("int_ethereum_balances")).parent_keys == {
         dg.AssetKey("stg_ethereum__eth_balances"),
@@ -89,6 +91,25 @@ def test_every_asset_and_check_runs_in_a_scheduled_pipeline():
     jobs = [job for job in defs.jobs if job.name in scheduled]
     assert {key for job in jobs for key in job.selection.resolve(graph)} == graph.get_all_asset_keys()
     assert {key for job in jobs for key in job.selection.resolve_checks(graph)} == graph.asset_check_keys
+
+
+def test_balances_job_ingests_the_balances_and_every_source_tokens_reads():
+    graph = defs.resolve_asset_graph()
+    job = next(job for job in defs.jobs if job.name == "balances")
+    ingested = {key for key in job.selection.resolve(graph) if tuple(key.path) in SOURCES}
+    # latest_balances takes token decimals from tokens, so the job also loads every metadata source tokens
+    # reads, Arbitrum and Base among them. A failed load there skips the job's dbt step.
+    assert ingested == {
+        dg.AssetKey(["ethereum", "eth_balances"]),
+        dg.AssetKey(["ethereum", "erc20_balances"]),
+        dg.AssetKey(["solana", "sol_balances"]),
+        dg.AssetKey(["solana", "spl_balances"]),
+        dg.AssetKey(["bitcoin", "btc_balances"]),
+        dg.AssetKey(["ethereum", "erc20_metadata"]),
+        dg.AssetKey(["arbitrum", "erc20_metadata"]),
+        dg.AssetKey(["base", "erc20_metadata"]),
+        dg.AssetKey(["solana", "spl_metadata"]),
+    }
 
 
 def test_pino_line_logs_at_its_level_with_its_fields():
