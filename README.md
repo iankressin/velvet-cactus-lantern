@@ -32,7 +32,7 @@ Dagster's UI is at http://localhost:3000. Grafana is at http://localhost:3001; s
 
 The defaults need no API key. The sources call two proxies that run in Docker. eRPC, on port 4000, sends Ethereum and Solana calls to the free public RPCs in `infra/erpc/erpc.yaml`. Dshackle, on port 8545, sends Bitcoin calls to those in `infra/dshackle/dshackle.yaml`. The free Solana and Bitcoin RPCs have tight rate limits; see [Assumptions and limitations](#assumptions-and-limitations).
 
-To use your own endpoint, such as a QuickNode or Alchemy URL, set `EVM_RPC_URL`, `SOLANA_RPC_URL` or `DSHACKLE_URL` (Bitcoin) in the root `.env`. Under `bj` and Dagster, a key there wins over each source's own `.env`. Git ignores every `.env`. A Bitcoin endpoint must serve `scantxoutset`, which the Bitcoin source calls.
+To use your own endpoint, such as a QuickNode or Alchemy URL, set `EVM_RPC_URL`, `SOLANA_RPC_URL` or `DSHACKLE_URL` (Bitcoin) in the root `.env`. Under `bj` and Dagster, a key there wins over each source's own `.env`. A Bitcoin endpoint must serve `scantxoutset`, which the Bitcoin source calls.
 
 To keep eRPC's cache and retries, add the URL as an upstream in `infra/erpc/erpc.yaml` instead, and keep the key out of git. Then restart eRPC:
 
@@ -76,7 +76,7 @@ uv run --project orchestration bj run balances --wallet-assets input/wallet-asse
 
 1. Open http://localhost:3000, go to Jobs and pick `balances`.
 2. Click Materialize all to run with the values in the `.env` files.
-3. To change a value for one run, open the arrow next to Materialize all and pick Open launchpad. Click Scaffold all default config to list each source's env variables with the values it reads now. Shared ones, such as `WALLET_ASSETS_CSV`, sit under `resources.ingestion_env.config`. Edit any of them, then click Materialize.
+3. To change a value for one run, open the arrow next to Materialize all and pick Open launchpad. Click Scaffold all default config to list each source's env variables with the values it reads now. Shared ones, such as `WALLET_ASSETS_CSV`, are under `resources.ingestion_env.config`. Edit any of them, then click Materialize.
 4. Open the run under Runs to see its id. In the run's log, the `balances_csv` step shows the file `path`, its `rows` and a count per status.
 
 The `balances_schedule` schedule runs the job daily at 06:00 UTC (`0 6 * * *` in `orchestration/pipeline/schedules.py`). It starts off; turn it on under Automation. It fires only while `bj dev` runs, and without `DAGSTER_HOME` Dagster forgets the switch when `bj dev` stops.
@@ -108,7 +108,7 @@ docker compose exec warehouse psql -U elt -d warehouse -c "select blockchain, wa
 
 ### Assumptions
 
-- "Current" means a different point on each chain. Each Ethereum source turns `BLOCK_NUMBER` (`finalized` by default) into one block when its run starts. Solana reads the latest finalized slot, and Bitcoin reads the chain tip. So rows on different chains do not share one moment, and neither do SPL rows, since each comes from its own call. Each row's `block_number` says what it read.
+- "Current" means a different point on each chain. Each Ethereum source turns `BLOCK_NUMBER` (`finalized` by default) into one block when its run starts. Solana reads the latest finalized slot, and Bitcoin reads the chain tip. So rows on different chains do not share one moment, and neither do SPL rows, since each comes from its own call. Each row's `block_number` shows the block or slot it read.
 - All three chains are mainnet, read through free public RPCs that need no API key. eRPC (Ethereum, Solana) and Dshackle (Bitcoin) spread the calls over several upstreams and switch to another when one fails.
 - The CSV accepts `ethereum`, `solana` and `bitcoin`. Ethereum is the only EVM chain it takes.
 - Token decimals come from the chain: the ERC-20 `decimals()` call and the SPL mint. When a token reports none, its row keeps `balance_raw`, leaves `balance_tokens` empty and has status `unknown_decimals`. The tool never guesses 18. Native decimals are fixed: 18 for ETH, 9 for SOL, 8 for BTC.
@@ -118,18 +118,18 @@ docker compose exec warehouse psql -U elt -d warehouse -c "select blockchain, wa
 ### Limitations
 
 - It is not one script. It needs Docker, Node 24, pnpm and uv, and runs Postgres, eRPC and Dshackle in containers. In return, every reading stays in `raw.*`, so each balance traces back to the call that made it. Failed calls retry on the next run, and Dagster can run the job on a schedule.
-- Free RPCs refuse calls or time out under load. A failed call does not fail the run. It waits in `raw._dead_letters`, retries on the next run, and stops retrying after 5 failed runs until a person looks at it. SPL is the tightest: it makes one `getTokenAccountsByOwner` call per wallet and mint, and the two free upstreams that serve it allow 10 calls a minute and 1 a second.
+- Free RPCs refuse calls or time out under load. A failed call does not fail the run. It waits in `raw._dead_letters`, retries on the next run, and stops retrying after 5 failed runs until a person looks at it. SPL has the tightest limits. It makes one `getTokenAccountsByOwner` call per wallet and mint, and the two free upstreams that serve it allow 10 calls a minute and 1 a second.
 - When a run cannot read a pair, the CSV keeps the last good reading and still says `ok`. Only an old `read_at` and `block_number` show that it is stale. `no_reading` covers both a pair no run has read and an ERC-20 whose `balanceOf` reverts or returns nothing, such as an address with no contract.
 - Bitcoin depends on one upstream. Only OnFinality's free endpoint serves `scantxoutset`, which scans the whole UTXO set once for all wallets and took 43 to 96 seconds when measured. If that call fails, every BTC row shows its last good reading.
 - A source run that fails outright, such as on a bad input file or an RPC that cannot name the block, stops the job before dbt, so it writes no CSV.
 - Solana and Bitcoin RPCs serve only current state, so the tool cannot read a past balance there. Ethereum can read a past block through `BLOCK_NUMBER`, but `latest_balances` keeps the highest block read, so a past block does not replace a newer reading.
-- No prices or USD values.
+- The tool reads no prices, so it gives no USD values.
 
 ## From prototype to recurring job
 
 The `balances` job already has a daily schedule at 06:00 UTC (`orchestration/pipeline/schedules.py`), off until you turn it on. Each run adds new readings to `raw`, rebuilds the marts and writes a new CSV. Prometheus alerts when a source run fails, when a source has not succeeded for 25 hours, and when a source has parked dead letters (`infra/prometheus/alerts.yml`).
 
-For an organization I would keep the daily cadence but run just after 00:00 UTC, so each reading lands close to the end of the day it reports. The EVM sources could read at the last block before midnight. Solana and Bitcoin read only current state, so their stored block time shows how close each reading got. Finance and dashboards would read warehouse tables, not CSV files.
+For an organization I would keep the daily cadence but run just after 00:00 UTC, so each reading is close to the end of the day it reports. The EVM sources could read at the last block before midnight. Solana and Bitcoin read only current state, so their stored block time shows how close each reading got. Finance and dashboards would read warehouse tables, not CSV files.
 
 ### Layers
 
@@ -150,7 +150,7 @@ Each raw row keeps the reply and the call that made it in `data` (`block_number`
 I would add:
 
 - `_run_id` on every raw row. Today a row links to its run only by time, and a rerun at the same block overwrites `data` and `_loaded_at`. I would key raw rows on `(id, _run_id)` and only append, so two replies for one block both stay and any disagreement shows.
-- `_upstream`, the RPC provider that answered. For EVM and Solana, eRPC names it in a response header. A wrong balance then points at one provider.
+- `_upstream`, the RPC provider that answered. For EVM and Solana, eRPC names it in a response header. Then I can trace a wrong balance to one provider.
 - `_block_time`, one extra call per block read, so daily cuts use chain time, not load time.
 - The input file's SHA-256 and path on each `load_id`, so a report traces back to the exact file.
 - `ops.call_failures`, an append-only copy of each dead letter. A success deletes its dead letter today, so only counts remain of past errors.
@@ -159,12 +159,12 @@ Solana and Bitcoin RPCs cannot serve past state, so raw is the only copy of a pa
 
 ### Cleaned tables and rollups
 
-- `core.fct_balance_snapshots` holds every reading, typed and scaled to whole tokens. `latest_balances` keeps only the newest, so today the history exists only as JSON in `raw`. Every question over time starts here.
+- `core.fct_balance_snapshots` holds every reading, typed and scaled to whole tokens. `latest_balances` keeps only the newest, so today the history exists only as JSON in `raw`. Any question about balances over time reads this table.
 - `core.dim_assets` extends `tokens` to native assets, whose decimals the intermediate models hard-code today, and maps each asset to a price feed id.
 - `core.dim_wallets` holds the entity that owns each wallet and its tags. The input CSV has only addresses. Owners change, so rows carry `valid_from` and `valid_to`, and a past report keeps its past owner.
 - `core.fct_asset_prices` holds one USD price per asset, day and price source, loaded by a new source. Keeping the price source lets anyone check a USD value.
-- `marts.daily_balances` takes the last reading before each day ends, for each wallet and asset, with its USD value. Chains read at different blocks, and the day lines them up. A wallet asset with no new reading carries the old one with `is_stale` set, so a gap shows instead of a false zero.
-- `marts.daily_portfolio` sums `daily_balances` by day, entity and asset: what each entity held and what it was worth.
+- `marts.daily_balances` takes the last reading before each day ends, for each wallet and asset, with its USD value. Chains read at different blocks, so the day is the key that lets you compare them. A wallet asset with no new reading carries the old one with `is_stale` set, so a gap shows instead of a false zero.
+- `marts.daily_portfolio` sums `daily_balances` by day, entity and asset, to show what each entity held and what it was worth.
 - `latest_balances` and `requested_balances` stay as they are and feed the CSV.
 
 dbt would build the facts and daily marts incrementally, one day at a time. On top of today's key, null, accepted-value and contract tests, I would add:
