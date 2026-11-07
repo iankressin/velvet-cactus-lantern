@@ -63,24 +63,6 @@
     "settings": "chains/ethereum"
   },
   {
-    "name": "ethereum",
-    "table": "uniswap_v2",
-    "package": "evm-uniswap-v2",
-    "settings": "chains/ethereum"
-  },
-  {
-    "name": "ethereum",
-    "table": "uniswap_v3",
-    "package": "evm-uniswap-v3",
-    "settings": "chains/ethereum"
-  },
-  {
-    "name": "ethereum",
-    "table": "uniswap_v4",
-    "package": "evm-uniswap-v4",
-    "settings": "chains/ethereum"
-  },
-  {
     "name": "solana",
     "table": "sol_balances",
     "package": "solana-sol-balances"

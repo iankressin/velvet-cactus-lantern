@@ -40,8 +40,13 @@ def test_sources_json_is_fresh(tmp_path):
 
 
 def test_sources_json_lists_todays_sources():
-    assert {pair(e) for e in ENTRIES} >= {"ethereum.uniswap_v2", "ethereum.uniswap_v3", "ethereum.uniswap_v4"}
-    assert len(ENTRIES) >= 9
+    assert {pair(e) for e in ENTRIES} >= {
+        "ethereum.eth_balances",
+        "ethereum.erc20_balances",
+        "solana.sol_balances",
+        "solana.spl_balances",
+        "bitcoin.btc_balances",
+    }
 
 
 def test_sources_json_is_sorted_by_name_then_table():

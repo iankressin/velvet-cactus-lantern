@@ -47,19 +47,6 @@ def test_mart_reads_each_chain_through_its_intermediate_model():
     }
 
 
-def test_dex_trades_reads_each_protocol_version_through_its_own_model():
-    graph = defs.resolve_asset_graph()
-    versions = ["v2", "v3", "v4"]
-    assert graph.get(dg.AssetKey("dex_trades")).parent_keys == {
-        dg.AssetKey(f"int_ethereum_uniswap_{version}_trades") for version in versions
-    }
-    for version in versions:
-        assert graph.get(dg.AssetKey(f"int_ethereum_uniswap_{version}_trades")).parent_keys == {
-            dg.AssetKey(f"stg_ethereum__uniswap_{version}"),
-            dg.AssetKey(f"stg_ethereum__uniswap_{version}_transactions"),
-        }
-
-
 def test_tokens_reads_each_chain_through_its_own_model():
     graph = defs.resolve_asset_graph()
     assert graph.get(dg.AssetKey("tokens")).parent_keys == {

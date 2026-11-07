@@ -1,5 +1,5 @@
 -- balance is null when the call reverted, e.g. the token was not deployed yet at that block.
--- Wallet and token addresses are lowercased, matching the Uniswap staging models.
+-- Wallet and token addresses are lowercased.
 select
     id,
     (data ->> 'block_number')::bigint as block_number,

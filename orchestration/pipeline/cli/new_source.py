@@ -100,7 +100,7 @@ def plan(repo_root: Path, source: str, table: str, like: str) -> Plan:
     if any((entry.name, entry.table) == (source, table) for entry in entries):
         raise BadInput(f"({source!r}, {table!r}) is already in {SOURCES_FILE}")
     if several_chains:
-        # A package that loads several chains is named for what it loads, such as evm-uniswap-v3.
+        # A package that loads several chains is named for what it loads, such as evm-erc20-metadata.
         prefix = like.removesuffix(f"-{old_table.replace('_', '-')}")
         if prefix == like:
             raise BadInput(f"{like} does not end with its table, {old_table}, so the new package cannot be named after it")
