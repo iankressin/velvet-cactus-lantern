@@ -23,6 +23,11 @@
     "settings": "chains/ethereum"
   },
   {
+    "name": "input",
+    "table": "wallet_assets",
+    "package": "input-wallet-assets"
+  },
+  {
     "name": "solana",
     "table": "sol_balances",
     "package": "solana-sol-balances"

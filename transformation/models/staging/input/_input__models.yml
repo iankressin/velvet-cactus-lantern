@@ -1,0 +1,31 @@
+version: 2
+
+models:
+  - name: stg_input__wallet_assets
+    description: >-
+      Every line of the wallet asset CSV, from every load. Each run of input-wallet-assets is one load,
+      under its own load_id. Picking the newest load is the job of the mart that reads this.
+    columns:
+      - name: id
+        data_tests: [unique, not_null]
+      - name: load_id
+        data_tests: [not_null]
+      - name: line
+        data_tests: [not_null]
+      - name: blockchain
+        data_tests: [not_null]
+      - name: asset_type
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [native, erc20, spl]
+      - name: wallet
+        data_tests:
+          - not_null:
+              config:
+                where: "asset_type is not null"
+      - name: problem
+        data_tests:
+          - not_null:
+              config:
+                where: "asset_type is null"
