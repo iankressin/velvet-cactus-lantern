@@ -18,19 +18,17 @@ export const balanceCallSchema = z.object({
 
 export type BalanceCall = z.infer<typeof balanceCallSchema>;
 
+/** One call for each listed wallet and token pair. */
 export const balanceCallsAt = (
   block: number,
-  wallets: readonly Address[],
-  tokens: readonly Address[],
+  assets: readonly { walletAddress: Address; tokenAddress: Address }[],
 ): BalanceCall[] =>
-  tokens.flatMap((token) =>
-    wallets.map((wallet) => ({
-      kind: "erc20_balance",
-      block,
-      token: toLower(token),
-      wallet: toLower(wallet),
-    })),
-  );
+  assets.map(({ walletAddress, tokenAddress }) => ({
+    kind: "erc20_balance",
+    block,
+    token: toLower(tokenAddress),
+    wallet: toLower(walletAddress),
+  }));
 
 const callId = (call: BalanceCall) =>
   `${call.block}:${call.token}:${call.wallet}`;

@@ -11,13 +11,15 @@ export const balanceCallSchema = z.object({
 
 export type BalanceCall = z.infer<typeof balanceCallSchema>;
 
+/** One call per listed wallet and mint. A wallet asks only for the mints listed with it. */
 export const balanceCalls = (
-  wallets: readonly Address[],
-  mints: readonly Address[],
+  assets: readonly { walletAddress: Address; tokenAddress: Address }[],
 ): BalanceCall[] =>
-  mints.flatMap((mint) =>
-    wallets.map((wallet) => ({ kind: "spl_balance", mint, wallet })),
-  );
+  assets.map(({ walletAddress, tokenAddress }) => ({
+    kind: "spl_balance",
+    mint: tokenAddress,
+    wallet: walletAddress,
+  }));
 
 // No slot: a Solana RPC cannot read a past slot, so a call is known by what it asks for,
 // and a retried call reads the balance as it is now. The record id adds the slot.

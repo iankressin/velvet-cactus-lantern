@@ -67,7 +67,7 @@ When Dagster is up, open http://localhost:3000 and materialize the assets you ne
 ## How you use it
 
 1. Set up once with `bj install`, start the stack and Dagster with `bj dev`, then open the Dagster UI.
-2. Point sources at the wallets and tokens you care about, in each source's `addresses.json`. A source that covers several chains keeps one per chain under `chains/<chain>/`.
+2. List the wallets and tokens whose balances you want in `ingestion/wallet-assets.csv`, one `blockchain,wallet_address,token_address` row each, with `token_address` empty for the native asset. Each balance source reads its own rows from it. Other sources take their addresses from their `addresses.json`; a source that covers several chains keeps one per chain under `chains/<chain>/`.
 3. Materialize a pipeline (balances, transfers, dex or labels) on a schedule you choose.
 4. Ask the business question in Claude Code. You get an answer folder with its checks, and a report if you want one.
 5. When the brief changes, add a source, a chain or [your own pipeline](#add-your-own-pipeline). The [skill](#claude-code-skill) can walk you through any of these.
