@@ -61,7 +61,7 @@ When Dagster is up, open http://localhost:3000 and materialize the assets you ne
 ## How you use it
 
 1. Set up once with `bj install`, start the stack and Dagster with `bj dev`, then open the Dagster UI.
-2. List the wallets and tokens whose balances you want in `ingestion/wallet-assets.csv`, one `blockchain,wallet_address,token_address` row each, with `token_address` empty for the native asset. Each balance source reads its own rows from it, and `evm-erc20-metadata` and `solana-spl-metadata` read the decimals of each token in it.
+2. List the wallets and tokens whose balances you want in `input/wallet-assets.csv`, one `blockchain,wallet_address,token_address` row each, with `token_address` empty for the native asset. Each balance source reads its own rows from it, and `evm-erc20-metadata` and `solana-spl-metadata` read the decimals of each token in it.
 3. Materialize the balances pipeline on a schedule you choose.
 4. Query `analytics.latest_balances` in the warehouse.
 5. When the brief changes, add a source, a chain or [your own pipeline](#add-your-own-pipeline).

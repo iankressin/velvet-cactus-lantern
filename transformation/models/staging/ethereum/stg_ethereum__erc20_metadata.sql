@@ -1,4 +1,4 @@
--- One token in the ethereum erc20 rows of ingestion/wallet-assets.csv or evm-erc20-metadata's
+-- One token in the ethereum erc20 rows of input/wallet-assets.csv or evm-erc20-metadata's
 -- chains/ethereum/addresses.json, read at one block; null where a call reverted.
 select
     id,

@@ -1,4 +1,4 @@
--- One mint in the solana spl rows of ingestion/wallet-assets.csv or solana-spl-metadata's addresses.json,
+-- One mint in the solana spl rows of input/wallet-assets.csv or solana-spl-metadata's addresses.json,
 -- read at one finalized slot; null where the chain has no value.
 select
     id,

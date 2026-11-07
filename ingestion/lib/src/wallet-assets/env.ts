@@ -3,11 +3,11 @@ import type { Blockchain } from "#src/wallet-assets/wallet-assets.ts";
 
 /**
  * The wallet asset CSV that the balance and metadata sources read, by its path from the source's
- * package folder. The default is the one file they share, ingestion/wallet-assets.csv, so an .env
+ * package folder. The default is the one file they share, input/wallet-assets.csv, so an .env
  * written before the setting existed still works.
  */
 export const walletAssetsEnv = z.object({
-  WALLET_ASSETS_CSV: z.string().default("../../wallet-assets.csv"),
+  WALLET_ASSETS_CSV: z.string().default("../../../input/wallet-assets.csv"),
 });
 
 export type WalletAssetsEnv = z.infer<typeof walletAssetsEnv>;

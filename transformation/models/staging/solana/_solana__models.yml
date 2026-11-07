@@ -25,7 +25,7 @@ models:
         data_tests: [not_null]
   - name: stg_solana__spl_metadata
     description: >-
-      The decimals, names and symbols of each mint in the solana spl rows of ingestion/wallet-assets.csv or
+      The decimals, names and symbols of each mint in the solana spl rows of input/wallet-assets.csv or
       solana-spl-metadata's addresses.json, one row per mint and slot read. Each name and symbol is kept as
       the chain stores it, without zero bytes.
     columns:
