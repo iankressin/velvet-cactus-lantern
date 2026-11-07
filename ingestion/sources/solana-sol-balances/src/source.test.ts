@@ -43,10 +43,16 @@ const firstBatch = (env: { SOLANA_RPC_URL: string; WALLET_ASSETS_CSV: string }) 
 
 const unreachable = "http://127.0.0.1:1";
 
-test("a bad native row fails the run, not the import", async (t) => {
+test("a bad native row is skipped, and the run reads the rest", async (t) => {
   const path = await csvFile(t, HEADER, `solana,${wallet},`, "solana,nope,");
-  await assert.rejects(firstBatch({ SOLANA_RPC_URL: unreachable, WALLET_ASSETS_CSV: path }), {
-    message: `Invalid solana native rows in ${path}:\n  line 3: wallet_address "nope" is not a Solana address`,
+  // No account exists, so the wallet reads 0.
+  const url = await rpcAnswering(t, { context: { slot: 1 }, value: [null] });
+
+  const { value: batch } = await firstBatch({ SOLANA_RPC_URL: url, WALLET_ASSETS_CSV: path });
+
+  assert.deepEqual(batch, {
+    records: [{ id: `1:${wallet}`, callId: wallet, data: { slot: 1n, wallet, balance: 0n } }],
+    failed: [],
   });
 });
 

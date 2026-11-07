@@ -55,16 +55,20 @@ test("reads only the Bitcoin rows, so a bad Ethereum or Solana row does not fail
   );
 });
 
-test("a bad Bitcoin row fails the run, not the import", async (t) => {
+test("a bad Bitcoin row is skipped, and the run reads the rest", async (t) => {
   const path = await walletAssetsCsv(t, `bitcoin,${bech32},`, "bitcoin,nope,");
-  await assert.rejects(firstBatch(path), {
-    message: `Invalid bitcoin rows in ${path}:\n  line 3: wallet_address "nope" is not a Bitcoin address`,
-  });
+  const batch = await firstBatch(path);
+  assert.deepEqual(
+    batch.failed.map(({ call }) => call),
+    [{ kind: "btc_balance", wallet: bech32 }],
+  );
 });
 
-test("a Bitcoin row with a token fails the run", async (t) => {
-  const path = await walletAssetsCsv(t, `bitcoin,${bech32},0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48`);
-  await assert.rejects(firstBatch(path), {
-    message: `Invalid bitcoin rows in ${path}:\n  line 2: bitcoin has no tokens; leave token_address empty`,
-  });
+test("a Bitcoin row with a token is skipped, and the run reads the rest", async (t) => {
+  const path = await walletAssetsCsv(t, `bitcoin,${p2pkh},`, `bitcoin,${bech32},0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48`);
+  const batch = await firstBatch(path);
+  assert.deepEqual(
+    batch.failed.map(({ call }) => call),
+    [{ kind: "btc_balance", wallet: p2pkh }],
+  );
 });

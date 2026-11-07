@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import {
+  parseWalletAssetLines,
   parseWalletAssets,
   readWalletAssets,
   type AssetType,
@@ -69,7 +70,6 @@ export const typeChecks = (path: string) => {
   return tokens;
 };
 
-const noWarnings = (message: string) => assert.fail(`unexpected warning: ${message}`);
 const badChecksum = "0xa0B86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
 const testnet = "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx";
 
@@ -85,34 +85,76 @@ const withBadRows = csv(
   `bitcoin,${testnet},`,
 );
 
-test("fails only the read whose rows are bad, listing each problem by line", () => {
-  const read = (blockchain: Blockchain, assetType?: AssetType) =>
-    parseWalletAssets(withBadRows, "wallets.csv", blockchain, assetType, noWarnings);
+test("skips the bad rows of a read and warns with each problem by line", () => {
+  const read = (blockchain: Blockchain, assetType?: AssetType) => {
+    const warnings: string[] = [];
+    const assets = parseWalletAssets(withBadRows, "wallets.csv", blockchain, assetType, (m) => warnings.push(m));
+    return { assets, warnings };
+  };
 
-  assert.throws(() => read("ethereum", "native"), {
-    message: 'Invalid ethereum native rows in wallets.csv:\n  line 3: wallet_address "0x123" is not an Ethereum address',
+  assert.deepEqual(read("ethereum", "native"), {
+    assets: [ethNative],
+    warnings: ['Invalid ethereum native rows in wallets.csv, skipped:\n  line 3: wallet_address "0x123" is not an Ethereum address'],
   });
-  assert.throws(() => read("ethereum", "erc20"), {
-    message: [
-      "Invalid ethereum erc20 rows in wallets.csv:",
-      '  line 4: wallet_address "0x456" is not an Ethereum address',
-      '  line 4: token_address "ETH" is not an Ethereum address; leave it empty for ETH',
-      `  line 5: wallet_address "${badChecksum}" is not an Ethereum address`,
-    ].join("\n"),
+  assert.deepEqual(read("ethereum", "erc20"), {
+    assets: [],
+    warnings: [
+      [
+        "Invalid ethereum erc20 rows in wallets.csv, skipped:",
+        '  line 4: wallet_address "0x456" is not an Ethereum address',
+        '  line 4: token_address "ETH" is not an Ethereum address; leave it empty for ETH',
+        `  line 5: wallet_address "${badChecksum}" is not an Ethereum address`,
+      ].join("\n"),
+    ],
   });
-  assert.throws(() => read("ethereum"), { message: /^Invalid ethereum rows in wallets\.csv:\n  line 3: .*\n  line 4: .*\n  line 4: .*\n  line 5: / });
-  assert.deepEqual(read("solana", "native"), [solNative]);
-  assert.throws(() => read("solana", "spl"), {
-    message: 'Invalid solana spl rows in wallets.csv:\n  line 7: token_address "SOL" is not a Solana address; leave it empty for SOL',
+  assert.deepEqual(read("solana", "native"), { assets: [solNative], warnings: [] });
+  assert.deepEqual(read("solana", "spl"), {
+    assets: [],
+    warnings: ['Invalid solana spl rows in wallets.csv, skipped:\n  line 7: token_address "SOL" is not a Solana address; leave it empty for SOL'],
   });
-  assert.throws(() => read("bitcoin"), {
-    message: [
-      "Invalid bitcoin rows in wallets.csv:",
-      "  line 8: bitcoin has no tokens; leave token_address empty",
-      "  line 9: has 2 cells; the header has 3",
-      `  line 10: wallet_address "${testnet}" is not a Bitcoin address`,
-    ].join("\n"),
+  assert.deepEqual(read("bitcoin"), {
+    assets: [],
+    warnings: [
+      [
+        "Invalid bitcoin rows in wallets.csv, skipped:",
+        "  line 8: bitcoin has no tokens; leave token_address empty",
+        "  line 9: has 2 cells; the header has 3",
+        `  line 10: wallet_address "${testnet}" is not a Bitcoin address`,
+      ].join("\n"),
+    ],
   });
+});
+
+test("lists every line with its cells as written, and its wallet asset or its problems", () => {
+  const text = csv(`ethereum,${vitalik},`, `ethereum,0x123,`, `bitcoin,${btcWallet}`, `Ethereum,${vitalik},`, `ethereum,${vitalik},`);
+  assert.deepEqual(parseWalletAssetLines(text, "wallets.csv"), [
+    { line: 2, blockchain: "ethereum", walletAddress: vitalik, tokenAddress: "", asset: ethNative, problems: [] },
+    {
+      line: 3,
+      blockchain: "ethereum",
+      walletAddress: "0x123",
+      tokenAddress: "",
+      asset: null,
+      problems: ['wallet_address "0x123" is not an Ethereum address'],
+    },
+    {
+      line: 4,
+      blockchain: "bitcoin",
+      walletAddress: btcWallet,
+      tokenAddress: "",
+      asset: null,
+      problems: ["has 2 cells; the header has 3"],
+    },
+    {
+      line: 5,
+      blockchain: "Ethereum",
+      walletAddress: vitalik,
+      tokenAddress: "",
+      asset: null,
+      problems: ['blockchain "Ethereum" is not ethereum, solana or bitcoin'],
+    },
+    { line: 6, blockchain: "ethereum", walletAddress: vitalik, tokenAddress: "", asset: ethNative, problems: [] },
+  ]);
 });
 
 test("warns in every read about rows on a chain no source reads", () => {
