@@ -2,7 +2,7 @@ import dagster as dg
 from dagster_dbt import DbtCliResource
 
 from pipeline.assets.dbt import transformation_assets
-from pipeline.assets.ingestion import ingestion_assets, ingestion_checks
+from pipeline.assets.ingestion import ingestion_assets, ingestion_checks, ingestion_env
 from pipeline.project import dbt_project
 from pipeline.schedules import jobs, schedules
 
@@ -11,5 +11,5 @@ defs = dg.Definitions(
     asset_checks=ingestion_checks,
     jobs=jobs,
     schedules=schedules,
-    resources={"dbt": DbtCliResource(project_dir=dbt_project)},
+    resources={"dbt": DbtCliResource(project_dir=dbt_project), "ingestion_env": ingestion_env},
 )

@@ -13,7 +13,7 @@ def connect(env: Mapping[str, str] | None = None):
         host=env["WAREHOUSE_HOST"],
         port=env["WAREHOUSE_PORT"],
         user=env["WAREHOUSE_USER"],
-        password=os.environ["WAREHOUSE_PASSWORD"],
+        password=env["WAREHOUSE_PASSWORD"],
         dbname=env["WAREHOUSE_DB"],
     )
 
