@@ -34,6 +34,7 @@ PASS, WARN, FAIL = "PASS", "WARN", "FAIL"
 #   POOLS_START_BLOCK  ingestion/sources/evm-uniswap-*/src/source.ts: the factory's deploy block
 #   END_BLOCK          ingestion/sources/evm-uniswap-*/src/source.ts: unset reads to the head
 #   FACTORY_DB         ingestion/sources/evm-uniswap-*/src/source.ts: chains/<chain>/factory.sqlite
+#   WALLET_ASSETS_CSV  ingestion/lib/src/wallet-assets/env.ts: ../../wallet-assets.csv
 OPTIONAL_KEYS = frozenset(
     {
         "PUSHGATEWAY_URL",
@@ -44,6 +45,7 @@ OPTIONAL_KEYS = frozenset(
         "POOLS_START_BLOCK",
         "END_BLOCK",
         "FACTORY_DB",
+        "WALLET_ASSETS_CSV",
     }
 )
 

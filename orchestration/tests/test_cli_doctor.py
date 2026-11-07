@@ -28,6 +28,8 @@ WAREHOUSE_PASSWORD=elt
 BLOCK_NUMBER=finalized
 ERPC_URL=https://eth.drpc.org
 RPC_BATCH_SIZE=3
+# The wallet asset CSV the balance and metadata sources share, by its path from this package's folder.
+WALLET_ASSETS_CSV=../../wallet-assets.csv
 # Each ingestion run pushes its metrics here. Leave it empty to push none.
 PUSHGATEWAY_URL=http://localhost:9091
 LOG_LEVEL=info
@@ -183,7 +185,15 @@ def test_doctor_reports_missing_keys_without_values(repo, services, capsys):
     for value in ("s3cret-pw-77", "root-pw-9f3a", "db.internal.example", "eth.drpc.org"):
         assert value not in out
     # Keys the schemas read with a default, left empty or out, are never missing.
-    for key in ("PUSHGATEWAY_URL", "RPC_BATCH_SIZE", "LOG_LEVEL", "PORTAL_URL", "END_BLOCK", "GOOGLE_OAUTH_CLIENT_SECRET"):
+    for key in (
+        "PUSHGATEWAY_URL",
+        "RPC_BATCH_SIZE",
+        "LOG_LEVEL",
+        "PORTAL_URL",
+        "END_BLOCK",
+        "WALLET_ASSETS_CSV",
+        "GOOGLE_OAUTH_CLIENT_SECRET",
+    ):
         assert key not in out
 
 
