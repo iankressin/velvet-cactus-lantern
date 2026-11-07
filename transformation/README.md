@@ -6,9 +6,7 @@ Ethereum hex addresses are lowercased in staging. Solana and Bitcoin addresses a
 
 ## Adding a chain
 
-`bj new-source` already scaffolds the dbt sources YAML and a staging model that selects `id`, `data` and `_loaded_at` from that source, then regenerates `ingestion/sources.json`, which Dagster builds its `SOURCES` from. See `orchestration/pipeline/cli/new_source.py`. It does not add the chain to a mart, and it schedules nothing: `PIPELINES` in `orchestration/pipeline/schedules.py` stays a hand step.
-
-The remaining steps, by hand:
+First follow [Add a source](../docs/architecture.md#add-a-source) to load the chain's raw data. Its steps add the dbt sources YAML and the staging models, and regenerate `ingestion/sources.json`, which Dagster builds its `SOURCES` from. Then:
 
 1. Add `int_<chain>_balances.sql` and its contract YAML, copied from an existing chain in `models/intermediate/balances/`. Set `decimals` to the native asset's decimals on native rows and to null on token rows. The contract names any missing or mistyped column at build time.
 2. Add a `union all` branch for that model in `models/marts/balances/latest_balances.sql`.
