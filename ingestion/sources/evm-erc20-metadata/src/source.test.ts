@@ -208,31 +208,90 @@ test("queues every call for retry when the batch request itself fails", async (t
   }
 });
 
-const env = { BLOCK_NUMBER: "latest", EVM_RPC_URL: "http://127.0.0.1:1", RPC_BATCH_SIZE: 1, RPC_MAX_CONCURRENCY: 1 } as const;
+const wallet = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045";
+const otherWallet = "0x28C6c06298d514Db089934071355E5743bf21d60";
+const dai = "0x6b175474e89094c44da98b954eedeac495271d0f";
+const uni = "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984";
+const baseUni = "0xc3de830ea07524a0761646a6a4e4be0e114a3c83";
 
-/** Runs the rest of the test from a folder whose chains/ethereum/addresses.json holds `json`, as a source runs from its package. */
-async function addressesHold(t: TestContext, json: string) {
+/**
+ * Runs the rest of the test from a folder laid out like the package: chains/<chain>/addresses.json holds
+ * `addresses`, and wallet-assets.csv holds `rows` under its header. Returns the CSV's path.
+ */
+async function packageFolder(t: TestContext, chain: string, addresses: string, ...rows: string[]) {
   const dir = await mkdtemp(join(tmpdir(), "evm-erc20-metadata-"));
   const cwd = process.cwd();
   t.after(async () => {
     process.chdir(cwd);
     await rm(dir, { recursive: true });
   });
-  await mkdir(join(dir, "chains", "ethereum"), { recursive: true });
-  await writeFile(join(dir, "chains", "ethereum", "addresses.json"), json);
+  await mkdir(join(dir, "chains", chain), { recursive: true });
+  await writeFile(join(dir, "chains", chain, "addresses.json"), addresses);
+  const csv = join(dir, "wallet-assets.csv");
+  await writeFile(csv, ["blockchain,wallet_address,token_address", ...rows].join("\n") + "\n");
   process.chdir(dir);
+  return csv;
 }
 
-const firstBatch = () => forChain("ethereum").extract(env, [])[Symbol.asyncIterator]().next();
+/** The first batch of a run on `chain`, its settings parsed by the source, as runSource parses them. */
+async function firstBatch(chain: string, settings: { WALLET_ASSETS_CSV: string; EVM_RPC_URL?: string }) {
+  const source = forChain(chain);
+  const env = source.env.parse({ BLOCK_NUMBER: "5", EVM_RPC_URL: "http://127.0.0.1:1", ...settings });
+  for await (const batch of source.extract(env, [])) return batch;
+}
+
+test("reads each erc20 token in the wallet asset CSV and in addresses.json once", async (t) => {
+  const csv = await packageFolder(
+    t,
+    "ethereum",
+    JSON.stringify({ tokens: [getAddress(usdc), getAddress(uni)] }),
+    `ethereum,${wallet},`,
+    `ethereum,${wallet},${usdc}`,
+    `ethereum,${otherWallet},${getAddress(usdc)}`,
+    `ethereum,${wallet},${dai}`,
+    // Bad rows that only evm-eth-balances and bitcoin-btc-balances read.
+    "ethereum,0xnot,",
+    "bitcoin,not-a-bitcoin-address,",
+  );
+  const { url } = await node(t, answering({}));
+
+  const batch = await firstBatch("ethereum", { WALLET_ASSETS_CSV: csv, EVM_RPC_URL: url });
+
+  assert.deepEqual(
+    batch?.records.map(({ data }) => data.token),
+    [usdc, dai, uni],
+    "the CSV's tokens first, then addresses.json's, each once whatever its case",
+  );
+  assert.deepEqual(batch?.failed, []);
+});
+
+test("a bad erc20 row fails the run, not the import", async (t) => {
+  const csv = await packageFolder(t, "ethereum", JSON.stringify({ tokens: [] }), `ethereum,${wallet},0xnot`);
+  await assert.rejects(firstBatch("ethereum", { WALLET_ASSETS_CSV: csv }), {
+    message: `Invalid ethereum erc20 rows in ${csv}:\n  line 2: token_address "0xnot" is not an Ethereum address; leave it empty for ETH`,
+  });
+});
+
+test("a chain the wallet asset CSV cannot hold reads only its addresses.json", async (t) => {
+  await packageFolder(t, "base", JSON.stringify({ tokens: [baseUni] }));
+  const { url } = await node(t, answering({}));
+
+  // No file is at this path, so the run fails if it opens the CSV.
+  const batch = await firstBatch("base", { WALLET_ASSETS_CSV: "missing.csv", EVM_RPC_URL: url });
+
+  assert.deepEqual(batch?.records.map(({ data }) => data.token), [baseUni]);
+});
 
 test("a bad address in addresses.json fails the run, not the import", async (t) => {
-  await addressesHold(t, JSON.stringify({ tokens: ["0xnot-an-address"] }));
-  await assert.rejects(firstBatch(), { message: "Invalid Ethereum addresses:\n  0xnot-an-address" });
+  const csv = await packageFolder(t, "ethereum", JSON.stringify({ tokens: ["0xnot-an-address"] }), `ethereum,${wallet},`);
+  await assert.rejects(firstBatch("ethereum", { WALLET_ASSETS_CSV: csv }), {
+    message: "Invalid Ethereum addresses:\n  0xnot-an-address",
+  });
 });
 
 test("malformed addresses.json fails the run, not the import", async (t) => {
-  await addressesHold(t, '{ "tokens": [], }');
-  await assert.rejects(firstBatch(), /chains\/ethereum\/addresses\.json is not valid JSON/);
+  const csv = await packageFolder(t, "ethereum", '{ "tokens": [], }', `ethereum,${wallet},`);
+  await assert.rejects(firstBatch("ethereum", { WALLET_ASSETS_CSV: csv }), /chains\/ethereum\/addresses\.json is not valid JSON/);
 });
 
 test("each chain loads into a table of its own", () => {

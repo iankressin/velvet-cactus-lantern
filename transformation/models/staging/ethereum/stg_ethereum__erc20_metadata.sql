@@ -1,4 +1,5 @@
--- One token in chains/ethereum/addresses.json of evm-erc20-metadata, read at one block; null where a call reverted.
+-- One token in the ethereum erc20 rows of ingestion/wallet-assets.csv or evm-erc20-metadata's
+-- chains/ethereum/addresses.json, read at one block; null where a call reverted.
 select
     id,
     (data ->> 'block_number')::bigint as block_number,

@@ -2,9 +2,9 @@ import * as z from "zod";
 import type { Blockchain } from "#src/wallet-assets/wallet-assets.ts";
 
 /**
- * The wallet asset CSV a balance source reads, by its path from the source's package folder. The
- * default is the one file every balance source shares, ingestion/wallet-assets.csv, so an .env written
- * before the setting existed still works.
+ * The wallet asset CSV that the balance and metadata sources read, by its path from the source's
+ * package folder. The default is the one file they share, ingestion/wallet-assets.csv, so an .env
+ * written before the setting existed still works.
  */
 export const walletAssetsEnv = z.object({
   WALLET_ASSETS_CSV: z.string().default("../../wallet-assets.csv"),
