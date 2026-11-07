@@ -15,3 +15,8 @@ sources:
         columns:
           - name: id
             data_tests: [unique, not_null]
+      - name: spl_metadata
+        identifier: solana_spl_metadata
+        columns:
+          - name: id
+            data_tests: [unique, not_null]

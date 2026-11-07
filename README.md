@@ -28,7 +28,7 @@ When something breaks, you can see it. `bj doctor` checks your env and services 
 | Transfer history | ERC-20 on Ethereum, Arbitrum, Base → `analytics.erc20_transfers` |
 | DEX activity | Uniswap v2/v3/v4 → `analytics.dex_trades` |
 | Address labels | Code + exchange seeds → `analytics.address_labels` |
-| Token metadata | Name, symbol and decimals of listed ERC-20 tokens on Ethereum, Arbitrum, Base → `analytics.tokens` |
+| Token metadata | Name, symbol and decimals of listed ERC-20 tokens on Ethereum, Arbitrum, Base and SPL tokens on Solana → `analytics.tokens` |
 | Token prices | Binance and Coinbase candles for any listed token → `analytics.token_prices`; Chainlink rounds on Ethereum, Arbitrum, Base → `analytics.oracle_prices` |
 | How it runs | TypeScript extract/load → dbt → Dagster, plus Docker for the warehouse, eRPC, Dshackle and monitoring |
 | How you drive it | `bj` CLI (`dev`, `doctor`, `run`, `answer`, `report`, `new-source`, …) and the blockjuice skill |

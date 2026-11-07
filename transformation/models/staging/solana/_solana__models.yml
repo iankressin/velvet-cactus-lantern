@@ -23,3 +23,27 @@ models:
         data_tests: [not_null]
       - name: balance
         data_tests: [not_null]
+  - name: stg_solana__spl_metadata
+    description: >-
+      The decimals, names and symbols of each mint in solana-spl-metadata's addresses.json, one row per
+      mint and slot read. Each name and symbol is kept as the chain stores it, without zero bytes.
+    columns:
+      - name: id
+        data_tests: [unique, not_null]
+      - name: slot
+        data_tests: [not_null]
+      - name: mint
+        description: The mint as written. Base58 is case-sensitive, so it is not lowercased.
+        data_tests: [not_null]
+      - name: owner_program
+        description: The program that owns the mint's account. Null when the address has no account.
+      - name: decimals
+        description: Null when the address is not a mint, such as a wallet.
+      - name: token_2022_name
+        description: From the mint's Token-2022 metadata extension.
+      - name: token_2022_symbol
+        description: From the mint's Token-2022 metadata extension.
+      - name: metaplex_name
+        description: From the mint's Metaplex metadata account.
+      - name: metaplex_symbol
+        description: From the mint's Metaplex metadata account.

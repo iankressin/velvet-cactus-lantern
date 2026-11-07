@@ -130,5 +130,10 @@
     "name": "solana",
     "table": "spl_balances",
     "package": "solana-spl-balances"
+  },
+  {
+    "name": "solana",
+    "table": "spl_metadata",
+    "package": "solana-spl-metadata"
   }
 ]
