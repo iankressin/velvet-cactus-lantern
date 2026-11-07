@@ -93,6 +93,13 @@ def test_requested_balances_joins_the_input_to_latest_balances():
     }
 
 
+def test_balances_csv_reads_requested_balances_in_the_balances_job():
+    graph = defs.resolve_asset_graph()
+    assert graph.get(dg.AssetKey("balances_csv")).parent_keys == {dg.AssetKey("requested_balances")}
+    job = next(job for job in defs.jobs if job.name == "balances")
+    assert dg.AssetKey("balances_csv") in job.selection.resolve(graph)
+
+
 def test_pino_line_logs_at_its_level_with_its_fields():
     line = '{"level":40,"time":1,"pid":2,"hostname":"h","source":"ethereum","table":"eth_balances","failedCalls":3,"msg":"Some calls failed"}'
     assert parse_log_line(line) == (logging.WARNING, "Some calls failed failedCalls=3")
