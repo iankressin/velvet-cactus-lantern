@@ -22,9 +22,10 @@ export const solanaSplBalances: Source<SolanaEnv & WalletAssetsEnv, BalanceCall>
   async *extract(env, retry) {
     // Read inside the run, not at import, so runSource reports a bad file.
     const assets = readWalletAssets(env.WALLET_ASSETS_CSV, "solana", "spl");
-    // The free RPCs that serve getTokenAccountsByOwner allow about 2 calls a second
-    // between them; sent all at once, most calls are refused.
-    const rpc = createSolanaClient(env.SOLANA_RPC_URL, { maxConcurrency: 2 });
+    // The free RPCs that serve getTokenAccountsByOwner allow about 40 calls a minute between
+    // them (infra/erpc/erpc.yaml). A refused call holds its slot for about 15s while eRPC
+    // retries, then fails, so pace the calls under the limit instead.
+    const rpc = createSolanaClient(env.SOLANA_RPC_URL, { maxConcurrency: 2, minIntervalMs: 1500 });
     yield await fetchBalances(rpc, [...balanceCalls(assets), ...retry]);
   },
 };

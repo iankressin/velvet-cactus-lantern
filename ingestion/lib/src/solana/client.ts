@@ -14,7 +14,22 @@ export type SolanaClient = ReturnType<typeof createSolanaClient>;
 export type SolanaClientOptions = {
   maxConcurrency?: number;
   retryCount?: number;
+  /** Least time between the starts of two requests, to stay under an upstream's rate limit. */
+  minIntervalMs?: number;
 };
+
+/** Spaces calls at least `intervalMs` apart, in the order they ask. */
+function createPacer(intervalMs: number) {
+  let next = 0;
+  let pending = Promise.resolve();
+  return () => {
+    pending = pending.then(async () => {
+      while (next > Date.now()) await sleep(next - Date.now());
+      next = Date.now() + intervalMs;
+    });
+    return pending;
+  };
+}
 
 // eRPC sends an HTTP error only after its own retries across every upstream; sending the
 // request again repeats all of that work against upstreams that are already refusing.
@@ -48,7 +63,7 @@ function throwUnnamedRpcError(reply: unknown) {
 }
 
 /**
- * Sends at most `maxConcurrency` requests at once, and retries a request that got no reply,
+ * Sends at most `maxConcurrency` requests at once, at least `minIntervalMs` apart, and retries a request that got no reply,
  * such as while eRPC restarts, with exponential backoff. Any reply, an HTTP error or a
  * JSON-RPC error inside it, goes to the caller.
  *
@@ -57,12 +72,18 @@ function throwUnnamedRpcError(reply: unknown) {
  */
 export function createSolanaClient(
   url: string,
-  { maxConcurrency = 16, retryCount = 5 }: SolanaClientOptions = {},
+  { maxConcurrency = 16, retryCount = 5, minIntervalMs = 0 }: SolanaClientOptions = {},
 ) {
   const send = createDefaultRpcTransport({ url });
   const limit = createLimiter(maxConcurrency);
+  const pace = createPacer(minIntervalMs);
   const transport: RpcTransport = async <T>(config: Parameters<RpcTransport>[0]) => {
-    const reply = await limit(() => withRetry(() => send<T>(config), retryCount));
+    const reply = await limit(() =>
+      withRetry(async () => {
+        await pace();
+        return send<T>(config);
+      }, retryCount),
+    );
     throwUnnamedRpcError(reply);
     return reply;
   };

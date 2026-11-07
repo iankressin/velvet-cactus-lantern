@@ -58,3 +58,27 @@ test("a JSON-RPC error code that kit knows stays a SolanaError", async (t) => {
     (error) => isSolanaError(error, code),
   );
 });
+
+test("minIntervalMs spaces the starts of requests sent all at once", async (t) => {
+  const starts: number[] = [];
+  const server = createServer(async (req, res) => {
+    starts.push(Date.now());
+    let body = "";
+    for await (const chunk of req) body += chunk;
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({ jsonrpc: "2.0", id: JSON.parse(body).id, result: 1 }));
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => {
+    server.closeAllConnections();
+    server.close();
+  });
+  const rpc = createSolanaClient(`http://127.0.0.1:${(server.address() as AddressInfo).port}`, {
+    minIntervalMs: 100,
+  });
+
+  await Promise.all([1, 2, 3].map(() => rpc.getSlot().send()));
+
+  assert.equal(starts.length, 3);
+  for (let i = 1; i < starts.length; i++) assert.ok(starts[i]! - starts[i - 1]! >= 90, `gap ${i}: ${starts[i]! - starts[i - 1]!}ms`);
+});

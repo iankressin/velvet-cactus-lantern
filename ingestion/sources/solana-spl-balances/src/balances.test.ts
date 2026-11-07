@@ -4,12 +4,12 @@ import type { AddressInfo } from "node:net";
 import { test, type TestContext } from "node:test";
 import { getAddressDecoder, type Address } from "@solana/kit";
 import { createSolanaClient } from "@ingestion/lib/solana";
-import { balanceCalls, fetchBalances } from "#src/balances.ts";
+import { TOKEN_PROGRAMS, balanceCalls, fetchBalances } from "#src/balances.ts";
 
 type Request = {
   id: number;
   method: string;
-  params: [Address, { mint: Address }, unknown];
+  params: [Address, { programId: Address }, unknown];
 };
 type Reply = { result: unknown } | { error: { code: number; message: string } };
 
@@ -19,13 +19,14 @@ const addressOf = (n: number): Address => {
   return getAddressDecoder().decode(bytes);
 };
 
-const [walletA, walletB, mint, unknownMint, tokenAccount] = [0, 1, 2, 3, 4].map(addressOf) as [
+const [walletA, walletB, mint, otherMint, tokenAccount] = [0, 1, 2, 3, 4].map(addressOf) as [
   Address,
   Address,
   Address,
   Address,
   Address,
 ];
+const [tokenProgram, token2022Program] = TOKEN_PROGRAMS as [Address, Address];
 
 /** A JSON-RPC endpoint that answers each request with `reply`. Returns its URL. */
 async function fakeRpc(t: TestContext, reply: (request: Request) => Reply) {
@@ -44,41 +45,53 @@ async function fakeRpc(t: TestContext, reply: (request: Request) => Reply) {
   return `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 }
 
-/** Answers getTokenAccountsByOwner at slot 7 from `holdings`, keyed `${mint}:${owner}`, one amount per token account. Any mint but `mint` does not exist. */
+type Holding = { mint: Address; program: Address; amount: string };
+
+/** Answers getTokenAccountsByOwner at slot 7 with the token accounts `holdings` lists for the owner
+ * under the asked program, and records each request in `requests`. A wallet in `broken` gets an error. */
 const ledger =
-  (holdings: Record<string, string[]>) =>
-  ({ params: [owner, filter] }: Request): Reply =>
-    filter.mint !== mint
-      ? { error: { code: -32602, message: "Invalid param: could not find mint" } }
-      : {
-          result: {
-            context: { slot: 7 },
-            value: (holdings[`${filter.mint}:${owner}`] ?? []).map((amount) => ({
-              pubkey: tokenAccount,
-              account: {
-                lamports: 2039280,
-                owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
-                executable: false,
-                rentEpoch: 0,
+  (
+    holdings: Record<string, Holding[]>,
+    requests: Request[] = [],
+    broken: Address[] = [],
+    slotForProgram: (program: Address) => number = () => 7,
+  ) =>
+  (request: Request): Reply => {
+    requests.push(request);
+    const [owner, { programId }] = request.params;
+    if (broken.includes(owner)) return { error: { code: -32000, message: "rate-limit exceeded" } };
+    return {
+      result: {
+        context: { slot: slotForProgram(programId) },
+        value: (holdings[owner] ?? [])
+          .filter(({ program }) => program === programId)
+          .map(({ mint, amount }) => ({
+            pubkey: tokenAccount,
+            account: {
+              lamports: 2039280,
+              owner: programId,
+              executable: false,
+              rentEpoch: 0,
+              space: 165,
+              data: {
+                program: "spl-token",
                 space: 165,
-                data: {
-                  program: "spl-token",
-                  space: 165,
-                  parsed: {
-                    type: "account",
-                    info: {
-                      mint: filter.mint,
-                      owner,
-                      isNative: false,
-                      state: "initialized",
-                      tokenAmount: { amount, decimals: 6, uiAmount: null, uiAmountString: "" },
-                    },
+                parsed: {
+                  type: "account",
+                  info: {
+                    mint,
+                    owner,
+                    isNative: false,
+                    state: "initialized",
+                    tokenAmount: { amount, decimals: 6, uiAmount: null, uiAmountString: "" },
                   },
                 },
               },
-            })),
-          },
-        };
+            },
+          })),
+      },
+    };
+  };
 
 // No transport retries, so a failed request fails at once rather than after the backoff.
 const rpcAt = (url: string) => createSolanaClient(url, { retryCount: 0 });
@@ -87,16 +100,42 @@ const rpcAt = (url: string) => createSolanaClient(url, { retryCount: 0 });
 const held = (walletAddress: Address, tokenAddress: Address) => ({ walletAddress, tokenAddress });
 
 test("makes one call per listed wallet and mint, not one per wallet for every mint", () => {
-  assert.deepEqual(balanceCalls([held(walletA, mint), held(walletB, unknownMint)]), [
+  assert.deepEqual(balanceCalls([held(walletA, mint), held(walletB, otherMint)]), [
     { kind: "spl_balance", mint, wallet: walletA },
-    { kind: "spl_balance", mint: unknownMint, wallet: walletB },
+    { kind: "spl_balance", mint: otherMint, wallet: walletB },
   ]);
 });
 
-test("sums a wallet's token accounts for a mint, and records 0 when it has none", async (t) => {
+test("reads each wallet once per token program, however many of its mints are listed", async (t) => {
+  const requests: Request[] = [];
+  const url = await fakeRpc(t, ledger({}, requests));
+
+  await fetchBalances(
+    rpcAt(url),
+    balanceCalls([held(walletA, mint), held(walletA, otherMint), held(walletB, mint)]),
+  );
+
+  assert.deepEqual(
+    requests.map(({ method, params: [owner, { programId }] }) => `${method}:${owner}:${programId}`).sort(),
+    [
+      `getTokenAccountsByOwner:${walletA}:${tokenProgram}`,
+      `getTokenAccountsByOwner:${walletA}:${token2022Program}`,
+      `getTokenAccountsByOwner:${walletB}:${tokenProgram}`,
+      `getTokenAccountsByOwner:${walletB}:${token2022Program}`,
+    ].sort(),
+  );
+});
+
+test("sums a wallet's token accounts for a mint under both programs, and records 0 when it has none", async (t) => {
   const url = await fakeRpc(
     t,
-    ledger({ [`${mint}:${walletA}`]: ["9007199254740993", "1"] }),
+    ledger({
+      [walletA]: [
+        { mint, program: tokenProgram, amount: "9007199254740993" },
+        { mint, program: token2022Program, amount: "1" },
+        { mint: otherMint, program: tokenProgram, amount: "5" },
+      ],
+    }),
   );
 
   const batch = await fetchBalances(rpcAt(url), balanceCalls([held(walletA, mint), held(walletB, mint)]));
@@ -118,23 +157,49 @@ test("sums a wallet's token accounts for a mint, and records 0 when it has none"
   });
 });
 
-test("queues the call that fails and keeps the others", async (t) => {
-  const url = await fakeRpc(t, ledger({ [`${mint}:${walletA}`]: ["5"] }));
+test("uses each mint's latest reply slot and the later reply slot for absent mints", async (t) => {
+  const url = await fakeRpc(
+    t,
+    ledger(
+      { [walletA]: [{ mint, program: tokenProgram, amount: "5" }] },
+      [],
+      [],
+      (program) => (program === tokenProgram ? 100 : 110),
+    ),
+  );
 
-  const batch = await fetchBalances(rpcAt(url), balanceCalls([held(walletA, mint), held(walletA, unknownMint)]));
+  const batch = await fetchBalances(
+    rpcAt(url),
+    balanceCalls([held(walletA, mint), held(walletA, otherMint)]),
+  );
+
+  assert.deepEqual(
+    batch.records.map(({ id, data: { slot, balance } }) => ({ id, slot, balance })),
+    [
+      { id: `100:${mint}:${walletA}`, slot: 100n, balance: 5n },
+      { id: `110:${otherMint}:${walletA}`, slot: 110n, balance: 0n },
+    ],
+  );
+});
+
+test("queues every call of a wallet whose read fails and keeps the other wallets", async (t) => {
+  const url = await fakeRpc(
+    t,
+    ledger({ [walletB]: [{ mint, program: tokenProgram, amount: "5" }] }, [], [walletA]),
+  );
+
+  const batch = await fetchBalances(
+    rpcAt(url),
+    balanceCalls([held(walletA, mint), held(walletA, otherMint), held(walletB, mint)]),
+  );
 
   assert.deepEqual(
     batch.records.map(({ id }) => id),
-    [`7:${mint}:${walletA}`],
+    [`7:${mint}:${walletB}`],
   );
   assert.deepEqual(
-    batch.failed.map(({ id, call }) => ({ id, call })),
-    [
-      {
-        id: `${unknownMint}:${walletA}`,
-        call: { kind: "spl_balance", mint: unknownMint, wallet: walletA },
-      },
-    ],
+    batch.failed.map(({ id }) => id),
+    [`${mint}:${walletA}`, `${otherMint}:${walletA}`],
   );
-  assert.match(batch.failed[0]!.error, /could not find mint/);
+  assert.match(batch.failed[0]!.error, /rate-limit exceeded/);
 });
