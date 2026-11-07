@@ -29,8 +29,12 @@ requested as (
 select
     requested.blockchain,
     requested.wallet_address,
-    nullif(requested.token_address, '') as token_address,
+    -- The input leaves the cell empty for the native asset; native says so in the output.
+    coalesce(nullif(requested.token_address, ''), 'native') as token_address,
     balances.balance_tokens,
+    requested.asset_type,
+    balances.decimals,
+    balances.balance as balance_raw,
     case
         when requested.asset_type is null then 'invalid_input'
         when balances.blockchain is null then 'no_reading'
