@@ -59,12 +59,16 @@ models:
         data_type: bigint
         description: The block, or Solana slot, this balance was read at.
         data_tests: [not_null]
+      - name: read_at
+        data_type: timestamptz
+        description: When the source loaded this reading, within a minute of when it read it.
+        data_tests: [not_null]
 
 unit_tests:
   - name: latest_balances_scales_each_latest_balance_by_its_decimals
     description: >-
       Every digit of a large balance survives the scaling, natives have no token_address, a token with no
-      decimals keeps its row, and the latest block, then the latest load, wins.
+      decimals keeps its row, the latest block, then the latest load, wins, and read_at is the winner's load time.
     model: latest_balances
     given:
       - input: ref('int_ethereum_balances')
@@ -95,11 +99,11 @@ unit_tests:
     expect:
       format: sql
       rows: |
-        select 'ethereum' as blockchain, '0xw1' as wallet_address, null::text as token_address, 1234567890.123456789012345678::numeric as balance_tokens, 'native' as asset_type, 18 as decimals, 1234567890123456789012345678::numeric as balance, 100::bigint as block_number
-        union all select 'ethereum', '0xw1', '0xusdc', 1.5, 'erc20', 6, 1500000, 100
-        union all select 'ethereum', '0xw1', '0xnometa', null, 'erc20', null, 42, 100
-        union all select 'ethereum', '0xw2', null, 2, 'native', 18, 2000000000000000000, 101
-        union all select 'ethereum', '0xw3', '0xzero', 7, 'erc20', 0, 7, 100
-        union all select 'solana', 'SoLWaLLet1', null, 0, 'native', 9, 0, 300
-        union all select 'solana', 'SoLWaLLet1', 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', 2.5, 'spl', 6, 2500000, 300
-        union all select 'bitcoin', 'bc1qexample', null, 1.5, 'native', 8, 150000000, 900
+        select 'ethereum' as blockchain, '0xw1' as wallet_address, null::text as token_address, 1234567890.123456789012345678::numeric as balance_tokens, 'native' as asset_type, 18 as decimals, 1234567890123456789012345678::numeric as balance, 100::bigint as block_number, '2026-11-07 00:00+00'::timestamptz as read_at
+        union all select 'ethereum', '0xw1', '0xusdc', 1.5, 'erc20', 6, 1500000, 100, '2026-11-07 00:00+00'
+        union all select 'ethereum', '0xw1', '0xnometa', null, 'erc20', null, 42, 100, '2026-11-07 00:00+00'
+        union all select 'ethereum', '0xw2', null, 2, 'native', 18, 2000000000000000000, 101, '2026-11-07 01:00+00'
+        union all select 'ethereum', '0xw3', '0xzero', 7, 'erc20', 0, 7, 100, '2026-11-07 00:00+00'
+        union all select 'solana', 'SoLWaLLet1', null, 0, 'native', 9, 0, 300, '2026-11-07 00:00+00'
+        union all select 'solana', 'SoLWaLLet1', 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', 2.5, 'spl', 6, 2500000, 300, '2026-11-07 00:00+00'
+        union all select 'bitcoin', 'bc1qexample', null, 1.5, 'native', 8, 150000000, 900, '2026-11-07 00:00+00'
