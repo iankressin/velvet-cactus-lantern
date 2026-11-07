@@ -174,6 +174,23 @@ test("reads name and symbol from a Token-2022 mint's metadata extension", async 
   );
 });
 
+test("reads a Token-2022 mint that has an extension with no state", async (t) => {
+  // The RPC writes an extension that holds no data as its tag alone, such as a soulbound mint's.
+  const { url } = await fakeRpc(t, {
+    [token2022]: {
+      mint: mintAccount(6, [{ extension: "nonTransferable" }, tokenMetadata(token2022, "Badge", "BDG")]),
+    },
+  });
+
+  const batch = await fetchMetadata(rpcAt(url), metadataCalls([token2022]));
+
+  assert.deepEqual(batch.failed, []);
+  assert.deepEqual(
+    batch.records.map(({ data }) => [data.decimals, data.token_2022_name, data.token_2022_symbol]),
+    [[6, "Badge", "BDG"]],
+  );
+});
+
 test("keeps both names when a mint has both, for dbt to choose", async (t) => {
   const { url } = await fakeRpc(t, {
     [token2022]: {

@@ -78,7 +78,8 @@ const metaplexDecoder = getStructDecoder([
 /** The parts of a jsonParsed mint this source reads. A mint that does not match fails its call. */
 const mintInfo = z.object({
   decimals: z.number().int().nonnegative(),
-  extensions: z.array(z.object({ extension: z.string(), state: z.unknown() })).optional(),
+  // An extension that holds no data, such as nonTransferable, comes back with no state.
+  extensions: z.array(z.object({ extension: z.string(), state: z.unknown().optional() })).optional(),
 });
 
 const tokenMetadataState = z.object({ name: z.string(), symbol: z.string() });
