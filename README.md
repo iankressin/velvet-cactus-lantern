@@ -1,5 +1,3 @@
-# BlockJuice
-
 A take-home prototype that reads current balances over RPC for a list of wallets and tokens on Ethereum, Solana and Bitcoin. It reads `input/wallet-assets.csv` and writes `output/<run_id>_balances.csv`, with one row per requested wallet and asset and the balance in whole tokens.
 
 It covers ETH and ERC-20 tokens, SOL and SPL tokens, and BTC. Eight TypeScript sources in `ingestion/` make the RPC calls and load raw rows into Postgres: five read balances, two read token decimals and one loads the input file. dbt in `transformation/` turns those rows into `analytics.requested_balances`. Dagster in `orchestration/` runs both as one `balances` job and writes the CSV. The `bj` CLI sets it up and runs it.
