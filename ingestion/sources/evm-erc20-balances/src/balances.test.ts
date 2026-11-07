@@ -9,12 +9,13 @@ import {
   encodeFunctionResult,
   erc20Abi,
   multicall3Abi,
+  type Address,
   type Hex,
 } from "viem";
 import { createEvmClient } from "@ingestion/lib/evm";
 import { balanceCallsAt, fetchBalances } from "#src/balances.ts";
 
-const wallet = "0x00000000000000000000000000000000000000aa";
+const wallet: Address = "0x00000000000000000000000000000000000000aa";
 const token = "0x00000000000000000000000000000000000000bb";
 const reverting = "0x00000000000000000000000000000000000000cc";
 const noCode = "0x00000000000000000000000000000000000000dd";
@@ -111,6 +112,26 @@ async function fakeRpc(
 // No transport retries, so a failed request fails at once rather than after viem's backoff.
 const clientAt = (url: string) => createEvmClient(url, { retryCount: 0 });
 
+/** The wallet asset of `tokenAddress` held by `wallet`. */
+const holding = (tokenAddress: Address) => ({ walletAddress: wallet, tokenAddress });
+
+test("makes one call per listed wallet asset, not one per wallet and token", () => {
+  const vitalik = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045";
+  const binance = "0x28C6c06298d514Db089934071355E5743bf21d60";
+  const usdc = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
+  const dai = "0x6B175474E89094C44Da98b954EedeAC495271d0F";
+
+  const calls = balanceCallsAt(5, [
+    { walletAddress: vitalik, tokenAddress: usdc },
+    { walletAddress: binance, tokenAddress: dai },
+  ]);
+
+  assert.deepEqual(calls, [
+    { kind: "erc20_balance", block: 5, token: usdc.toLowerCase(), wallet: vitalik.toLowerCase() },
+    { kind: "erc20_balance", block: 5, token: dai.toLowerCase(), wallet: binance.toLowerCase() },
+  ]);
+});
+
 test("records each balance at its own block", async (t) => {
   const url = await fakeRpc(
     t,
@@ -118,8 +139,8 @@ test("records each balance at its own block", async (t) => {
   );
 
   const batch = await fetchBalances(clientAt(url), [
-    ...balanceCallsAt(5, [wallet], [token]),
-    ...balanceCallsAt(6, [wallet], [token]),
+    ...balanceCallsAt(5, [holding(token)]),
+    ...balanceCallsAt(6, [holding(token)]),
   ]);
 
   assert.deepEqual(batch, {
@@ -147,7 +168,7 @@ test("records null when balanceOf reverts or the token has no code at that block
 
   const batch = await fetchBalances(
     clientAt(url),
-    balanceCallsAt(5, [wallet], [reverting, noCode]),
+    balanceCallsAt(5, [holding(reverting), holding(noCode)]),
   );
 
   assert.deepEqual(batch.failed, []);
@@ -162,7 +183,7 @@ test("records null when balanceOf reverts or the token has no code at that block
 
 test("keeps one record when a retried call repeats a new one", async (t) => {
   const url = await fakeRpc(t, ledger({ [`5:${token}:${wallet}`]: 42n }));
-  const calls = balanceCallsAt(5, [wallet], [token]);
+  const calls = balanceCallsAt(5, [holding(token)]);
 
   const batch = await fetchBalances(clientAt(url), [...calls, ...calls]);
 
@@ -188,7 +209,7 @@ test("queues every call for retry when the batch request itself fails", async (t
   for (const [name, reply] of failures) {
     await t.test(name, async (t) => {
       const url = await fakeRpc(t, () => reply);
-      const calls = balanceCallsAt(5, [wallet], [token, reverting]);
+      const calls = balanceCallsAt(5, [holding(token), holding(reverting)]);
 
       const batch = await fetchBalances(clientAt(url), calls);
 
