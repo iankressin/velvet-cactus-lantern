@@ -16,7 +16,7 @@ export const bitcoinBtcBalances: Source<BitcoinEnv & WalletAssetsEnv, BalanceCal
   env: bitcoinEnv.extend(walletAssetsEnv.shape),
   call: balanceCallSchema,
   async *extract(env, retry) {
-    // Read inside the run, not at import, so runSource reports a bad Bitcoin row.
+    // Read inside the run, not at import, so runSource reports a bad file.
     const wallets = readWalletAssets(env.WALLET_ASSETS_CSV, "bitcoin").map((asset) => asset.walletAddress);
     const client = createBitcoinClient(env.DSHACKLE_URL);
     yield await fetchBalances(client, [...balanceCalls(wallets), ...retry]);
