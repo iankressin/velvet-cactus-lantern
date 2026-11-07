@@ -1,4 +1,3 @@
-import type { PortalStream } from "@subsquid/pipes";
 import type * as z from "zod";
 
 export type RawRecord = {
@@ -23,22 +22,12 @@ export type Batch<C = unknown> = {
   succeededCallIds?: string[];
 };
 
-/** What a stream source's outputs must be: records, or named lists of them that load together. */
-export type StreamRecords = RawRecord[] | Record<string, RawRecord[]>;
-
 /**
+ * A source that makes calls, such as RPC reads at one block.
+ *
  * `name` and `table` must match the dbt source name and table name.
  * Dagster uses the pair as the asset key, which links each ingestion
  * asset to the dbt models that read from it.
- */
-interface SourceBase<E> {
-  name: string;
-  table: string;
-  env: z.ZodType<E>;
-}
-
-/**
- * A source that makes calls, such as RPC reads at one block.
  *
  * `retry` holds the calls that failed in earlier runs, parsed with `call`. A source makes
  * them again next to its new calls. A failed call's `id` is the `callId` of the record it
@@ -46,20 +35,10 @@ interface SourceBase<E> {
  * successful call ids when a call produces no records. A dead letter whose call no longer
  * parses is parked.
  */
-export interface Source<E, C> extends SourceBase<E> {
+export interface Source<E, C> {
+  name: string;
+  table: string;
+  env: z.ZodType<E>;
   call: z.ZodType<C>;
   extract(env: E, retry: C[]): AsyncIterable<Batch<C>>;
-}
-
-/**
- * A source that reads blocks through a Pipes stream. runSource pipes it into the warehouse,
- * where Pipes keeps its cursor, so each run resumes after the last block the one before loaded.
- * The stream must end: give its range a `to`, such as Portal's finalized head at the start.
- * It reports no failed calls and uses no dead letters: an error fails the run, and the next
- * run resumes after the last batch that committed.
- */
-export interface StreamSource<E> extends SourceBase<E> {
-  /** About this many blocks a run (it ends on the batch that passes it), so a long backfill spreads over several runs. 1,000,000 by default. */
-  maxBlocksPerRun?: number;
-  stream(env: E): Promise<PortalStream<any, StreamRecords>>;
 }

@@ -1,4 +1,3 @@
-import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import * as z from "zod";
 import { chunk, uniqueBy } from "#src/calls.ts";
@@ -6,7 +5,6 @@ import { loadEnv } from "#src/env.ts";
 import type { Logger } from "#src/logger.ts";
 import type { RunReport } from "#src/run/index.ts";
 import type { Batch } from "#src/source.ts";
-import { pipesTarget, type PipesTargetOptions } from "#src/warehouse/stream.ts";
 
 /**
  * Pending dead letters are retried next run. Parked ones failed too often, or no longer match
@@ -20,13 +18,8 @@ export type DeadLetterBacklog = {
 /** What the warehouse needs from a connection: a pg client in production, PGlite in tests. */
 export type Connection = {
   query<R>(text: string, params?: unknown[]): Promise<{ rows: R[] }>;
-  /** The same connection as a Drizzle database, which Pipes' Postgres target needs to keep a stream source's cursor. */
-  drizzle(): NodePgDatabase;
   close(): Promise<void>;
 };
-
-/** What the warehouse's statements run through: its own connection, or a transaction Pipes opened. */
-export type Query = Pick<Connection, "query">;
 
 /** Where the warehouse lives: the schema that holds the raw tables and dead letters, and how to reach it. */
 export type WarehouseSettings = {
@@ -60,7 +53,6 @@ function postgresFromEnv(): WarehouseSettings {
       await client.connect();
       return {
         query: <R>(text: string, params?: unknown[]) => client.query<R & pg.QueryResultRow>(text, params),
-        drizzle: () => drizzle(client),
         close: () => client.end(),
       };
     },
@@ -136,40 +128,6 @@ export function postgresWarehouse(settings?: WarehouseSettings) {
         throw error;
       }
 
-      /** Writes the records, clears the dead letters they answer, and queues the new failures. */
-      const write = async (q: Query, { records, failed, succeededCallIds = [] }: Batch) => {
-        // Postgres rejects an upsert that touches the same id twice, so keep the last one.
-        for (const part of chunk(uniqueBy(records, (r) => r.id), CHUNK_SIZE)) {
-          await q.query(
-            `insert into ${table} (id, data)
-             select r->>'id', r->'data' from jsonb_array_elements($1::jsonb) r
-             on conflict (id) do update set data = excluded.data, _loaded_at = now()`,
-            [toJson(part)],
-          );
-        }
-        const successfulCalls = [...new Set([...records.map((r) => r.callId), ...succeededCallIds])];
-        if (successfulCalls.length > 0) {
-          await q.query(`delete from ${deadLetters} where source_table = $1 and id = any($2::text[])`, [
-            sourceTable,
-            successfulCalls,
-          ]);
-        }
-        for (const part of chunk(uniqueBy(failed, (f) => f.id), CHUNK_SIZE)) {
-          await q.query(
-            `insert into ${deadLetters} as t (source_table, id, call, error, parked)
-             select $1, f->>'id', f->'call', f->>'error', $2::integer <= 1
-             from jsonb_array_elements($3::jsonb) f
-             on conflict (source_table, id) do update set
-               call = excluded.call,
-               error = excluded.error,
-               attempts = t.attempts + 1,
-               parked = t.attempts + 1 >= $2::integer,
-               last_failed_at = now()`,
-            [sourceTable, MAX_ATTEMPTS, toJson(part)],
-          );
-        }
-      };
-
       return {
         name: table,
         deadLetters,
@@ -201,10 +159,39 @@ export function postgresWarehouse(settings?: WarehouseSettings) {
         },
 
         /** In one transaction: writes the records, clears the dead letters they answer, and queues the new failures. */
-        async load(batch: Batch) {
+        async load({ records, failed, succeededCallIds = [] }: Batch) {
           await db.query("begin");
           try {
-            await write(db, batch);
+            // Postgres rejects an upsert that touches the same id twice, so keep the last one.
+            for (const part of chunk(uniqueBy(records, (r) => r.id), CHUNK_SIZE)) {
+              await db.query(
+                `insert into ${table} (id, data)
+                 select r->>'id', r->'data' from jsonb_array_elements($1::jsonb) r
+                 on conflict (id) do update set data = excluded.data, _loaded_at = now()`,
+                [toJson(part)],
+              );
+            }
+            const successfulCalls = [...new Set([...records.map((r) => r.callId), ...succeededCallIds])];
+            if (successfulCalls.length > 0) {
+              await db.query(`delete from ${deadLetters} where source_table = $1 and id = any($2::text[])`, [
+                sourceTable,
+                successfulCalls,
+              ]);
+            }
+            for (const part of chunk(uniqueBy(failed, (f) => f.id), CHUNK_SIZE)) {
+              await db.query(
+                `insert into ${deadLetters} as t (source_table, id, call, error, parked)
+                 select $1, f->>'id', f->'call', f->>'error', $2::integer <= 1
+                 from jsonb_array_elements($3::jsonb) f
+                 on conflict (source_table, id) do update set
+                   call = excluded.call,
+                   error = excluded.error,
+                   attempts = t.attempts + 1,
+                   parked = t.attempts + 1 >= $2::integer,
+                   last_failed_at = now()`,
+                [sourceTable, MAX_ATTEMPTS, toJson(part)],
+              );
+            }
             await db.query("commit");
           } catch (error) {
             // A connection that broke cannot roll back. Report the error that broke it instead.
@@ -212,13 +199,6 @@ export function postgresWarehouse(settings?: WarehouseSettings) {
             throw error;
           }
         },
-
-        /**
-         * The Pipes target a stream source is piped into. Pipes keeps the cursor and runs each
-         * batch in one transaction, in which this table writes the batch like `load` does.
-         */
-        pipesTarget: (options: PipesTargetOptions) =>
-          pipesTarget({ db: db.drizzle(), schema, id: sourceTable, write, ...options }),
 
         async backlog(): Promise<DeadLetterBacklog> {
           const { rows } = await db.query<DeadLetterBacklog>(
