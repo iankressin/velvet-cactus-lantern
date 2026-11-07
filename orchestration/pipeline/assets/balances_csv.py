@@ -23,10 +23,19 @@ def csv_path() -> Path:
     return REPO_ROOT / (os.environ.get("BALANCES_CSV_PATH") or "output/balances.csv")
 
 
+# A spreadsheet runs a cell that starts with one of these as a formula. Only an invalid input line can
+# hold such text: no address, chain name, status, number or time starts with one.
+FORMULA_STARTS = ("=", "+", "-", "@", "\t", "\r")
+
+
 def cell_text(value: Any) -> str:
-    """A warehouse value as CSV text, written exactly: no float, None as empty, a time in UTC."""
+    """A warehouse value as CSV text, written exactly: no float, None as empty, a time in UTC. Text a
+    spreadsheet would run as a formula gets a leading ' so it shows as text; raw.input_wallet_assets
+    keeps it as written."""
     if value is None:
         return ""
+    if isinstance(value, str):
+        return f"'{value}" if value.startswith(FORMULA_STARTS) else value
     if isinstance(value, Decimal):
         return format(value, "f")
     if isinstance(value, datetime):

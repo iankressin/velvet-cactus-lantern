@@ -30,6 +30,12 @@ def test_writes_the_header_then_each_row_exactly(tmp_path):
     )
 
 
+def test_a_text_cell_a_spreadsheet_would_run_as_a_formula_is_written_as_text(tmp_path):
+    path = tmp_path / "balances.csv"
+    write_csv(path, ["a", "b", "c", "d", "e", "f"], [("=1+1", "+1", "-1", "@A1", "\tx", "0xAbC")])
+    assert path.read_text() == "a,b,c,d,e,f\n'=1+1,'+1,'-1,'@A1,'\tx,0xAbC\n"
+
+
 def test_creates_missing_folders(tmp_path):
     path = tmp_path / "a" / "b" / "balances.csv"
     write_csv(path, ["input_line"], [(2,)])
