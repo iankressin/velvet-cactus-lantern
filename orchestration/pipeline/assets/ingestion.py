@@ -2,11 +2,16 @@ import json
 import logging
 import os
 import subprocess
+from collections.abc import Mapping
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 
 import dagster as dg
+from dotenv.parser import Binding, parse_stream
 
 from pipeline.project import INGESTION_DIR, REPO_ROOT
-from pipeline.sources import SOURCES_FILE, read_sources
+from pipeline.sources import SOURCES_FILE, SourceEntry, read_sources
 from pipeline.warehouse import count_dead_letters
 
 # (source name, table name) pairs, from ingestion/sources.json: the `name` and `table` each package
@@ -19,6 +24,74 @@ PACKAGES = {(entry.name, entry.table): entry.package for entry in ENTRIES}
 
 def package_dir(source: str, table: str):
     return INGESTION_DIR / "sources" / PACKAGES[(source, table)]
+
+
+@dataclass(frozen=True)
+class EnvSetting:
+    key: str
+    example: str
+    comment: str
+    repo_path: Path
+
+
+def follows_blank_line(binding: Binding) -> bool:
+    # The parser folds blank lines into the start of the next binding.
+    text = binding.original.string
+    return "\n" in text[: len(text) - len(text.lstrip())]
+
+
+def read_env_example(path: Path) -> dict[str, EnvSetting]:
+    settings = {}
+    comment: list[str] = []
+    with path.open() as stream:
+        for binding in parse_stream(stream):
+            if follows_blank_line(binding):
+                comment = []
+            line = binding.original.string.lstrip()
+            if binding.key is not None:
+                repo_path = path.relative_to(REPO_ROOT)
+                settings[binding.key] = EnvSetting(binding.key, binding.value or "", " ".join(comment), repo_path)
+                comment = []
+            elif line.startswith("#"):
+                comment.append(line.lstrip("#").strip())
+            else:
+                comment = []
+    return settings
+
+
+def env_settings(entry: SourceEntry) -> dict[str, EnvSetting]:
+    package = read_env_example(INGESTION_DIR / "sources" / entry.package / ".env.example")
+    chain = read_env_example(entry.folder(REPO_ROOT) / ".env.example") if entry.settings else {}
+    return {**package, **chain}
+
+
+def describe(setting: EnvSetting) -> str:
+    lines = [
+        setting.comment,
+        f"Example: {setting.key}={setting.example} in {setting.repo_path}.",
+        "Leave it empty to keep the value from the .env files and the environment.",
+    ]
+    return "\n".join(line for line in lines if line)
+
+
+def config_schema(settings: Mapping[str, EnvSetting]) -> dict[str, dg.Field]:
+    # "Scaffold all default config" writes only fields with a default. Any takes an unquoted YAML number
+    # as well as a string.
+    return {
+        key: dg.Field(dg.Any, default_value="", is_required=False, description=describe(setting))
+        for key, setting in settings.items()
+    }
+
+
+def env_overrides(config: Mapping[str, Any]) -> dict[str, str]:
+    overrides = {}
+    for key, value in config.items():
+        if value is None or value == "":
+            continue
+        if isinstance(value, (Mapping, list)):
+            raise dg.Failure(description=f"Run config for {key} must be a single value, not a mapping or a list")
+        overrides[key] = str(value)
+    return overrides
 
 
 PINO_LEVELS = {
@@ -51,19 +124,27 @@ def parse_log_line(line: str) -> tuple[int, str]:
     return PINO_LEVELS[entry["level"]], message
 
 
-def build_ingestion_asset(source: str, table: str) -> dg.AssetsDefinition:
+def build_ingestion_asset(entry: SourceEntry) -> dg.AssetsDefinition:
+    source, table = entry.name, entry.table
+
     @dg.asset(
         key=[source, table],
         group_name="ingestion",
         kinds={"typescript", "postgres"},
+        description=f"Runs `pnpm ingest` in ingestion/sources/{entry.package}, and run config overrides "
+        "its env variables for that run only.",
+        config_schema=config_schema(env_settings(entry)),
     )
     def _ingest(context: dg.AssetExecutionContext) -> dg.MaterializeResult:
+        overrides = env_overrides(context.op_execution_context.op_config)
+        if overrides:
+            context.log.info(f"Run config overrides {', '.join(overrides)}")
         result = subprocess.run(
             ["pnpm", "--silent", "ingest"],
             cwd=package_dir(source, table),
             # The source writes the run id into ops.ingestion_runs, next to the dbt results of the same run.
             # CHAIN tells a package that loads several chains which one this asset is.
-            env={**os.environ, "DAGSTER_RUN_ID": context.run_id, "CHAIN": source},
+            env={**os.environ, **overrides, "DAGSTER_RUN_ID": context.run_id, "CHAIN": source},
             capture_output=True,
             text=True,
         )
@@ -107,5 +188,5 @@ def build_dead_letter_check(source: str, table: str) -> dg.AssetChecksDefinition
     return _check
 
 
-ingestion_assets = [build_ingestion_asset(source, table) for source, table in SOURCES]
+ingestion_assets = [build_ingestion_asset(entry) for entry in ENTRIES]
 ingestion_checks = [build_dead_letter_check(source, table) for source, table in SOURCES]
