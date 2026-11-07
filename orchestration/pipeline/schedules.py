@@ -6,7 +6,6 @@ from pipeline.assets.dbt import transformation_assets
 PIPELINES = {
     "balances": "0 6 * * *",
     "dex": "0 6 * * *",
-    "labels": "0 6 * * *",
     "bridges": "0 6 * * *",
     "prices": "0 6 * * *",
     "tokens": "0 6 * * *",

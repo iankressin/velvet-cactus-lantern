@@ -111,18 +111,6 @@ importers:
         specifier: ^4.6.7
         version: 4.6.7
 
-  sources/evm-address-code:
-    dependencies:
-      '@ingestion/lib':
-        specifier: workspace:*
-        version: link:../../lib
-      viem:
-        specifier: ^2.57.16
-        version: 2.57.16(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.6.7)
-      zod:
-        specifier: ^4.6.7
-        version: 4.6.7
-
   sources/evm-chainlink-price-feeds:
     dependencies:
       '@ingestion/lib':

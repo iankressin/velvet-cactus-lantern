@@ -5,11 +5,6 @@ sources:
   - name: base
     schema: "{{ env_var('RAW_SCHEMA', 'raw') }}"
     tables:
-      - name: address_code
-        identifier: base_address_code
-        columns:
-          - name: id
-            data_tests: [unique, not_null]
       - name: op_standard_bridge
         identifier: base_op_standard_bridge
         columns:

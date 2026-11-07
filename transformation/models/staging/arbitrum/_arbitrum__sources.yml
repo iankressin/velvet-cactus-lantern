@@ -5,11 +5,6 @@ sources:
   - name: arbitrum
     schema: "{{ env_var('RAW_SCHEMA', 'raw') }}"
     tables:
-      - name: address_code
-        identifier: arbitrum_address_code
-        columns:
-          - name: id
-            data_tests: [unique, not_null]
       - name: token_bridge
         identifier: arbitrum_token_bridge
         columns:
