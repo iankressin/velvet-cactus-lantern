@@ -30,10 +30,12 @@ export const TOKEN_PROGRAMS = [
   address("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"),
 ];
 
-type WalletBalances = { slot: bigint; byMint: Map<string, bigint> };
+type MintBalance = { slot: bigint; balance: bigint };
+type WalletBalances = { emptySlot: bigint; byMint: Map<string, MintBalance> };
 
 /** Every token account a wallet holds, under both token programs, summed by mint: a wallet can
- * hold one mint in several token accounts. The slot is the later of the two reads. */
+ * hold one mint in several token accounts. A held mint uses the latest slot of a reply that
+ * included it; an absent mint uses the later slot of the two replies. */
 async function walletBalances(rpc: SolanaClient, wallet: Address): Promise<WalletBalances> {
   const replies = await Promise.all(
     TOKEN_PROGRAMS.map((programId) =>
@@ -46,15 +48,22 @@ async function walletBalances(rpc: SolanaClient, wallet: Address): Promise<Walle
         .send(),
     ),
   );
-  const byMint = new Map<string, bigint>();
-  for (const { value } of replies) {
+  const byMint = new Map<string, MintBalance>();
+  for (const { context, value } of replies) {
     for (const { account } of value) {
       const { mint, tokenAmount } = account.data.parsed.info;
-      byMint.set(mint, (byMint.get(mint) ?? 0n) + BigInt(tokenAmount.amount));
+      const current = byMint.get(mint);
+      byMint.set(mint, {
+        slot: current && current.slot > context.slot ? current.slot : context.slot,
+        balance: (current?.balance ?? 0n) + BigInt(tokenAmount.amount),
+      });
     }
   }
-  const slot = replies.reduce((max, { context }) => (context.slot > max ? context.slot : max), 0n);
-  return { slot, byMint };
+  const emptySlot = replies.reduce(
+    (max, { context }) => (context.slot > max ? context.slot : max),
+    0n,
+  );
+  return { emptySlot, byMint };
 }
 
 /** Two getTokenAccountsByOwner calls per wallet, one per token program, however many of its
@@ -71,8 +80,14 @@ export const fetchBalances = (rpc: SolanaClient, calls: readonly BalanceCall[]) 
     calls,
     callId,
     async (call) => {
-      const { slot, byMint } = await read(call.wallet);
-      return { slot, mint: call.mint, wallet: call.wallet, balance: byMint.get(call.mint) ?? 0n };
+      const { emptySlot, byMint } = await read(call.wallet);
+      const holding = byMint.get(call.mint);
+      return {
+        slot: holding?.slot ?? emptySlot,
+        mint: call.mint,
+        wallet: call.wallet,
+        balance: holding?.balance ?? 0n,
+      };
     },
     (call, { slot }) => `${slot}:${callId(call)}`,
   );

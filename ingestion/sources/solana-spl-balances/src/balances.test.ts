@@ -50,14 +50,19 @@ type Holding = { mint: Address; program: Address; amount: string };
 /** Answers getTokenAccountsByOwner at slot 7 with the token accounts `holdings` lists for the owner
  * under the asked program, and records each request in `requests`. A wallet in `broken` gets an error. */
 const ledger =
-  (holdings: Record<string, Holding[]>, requests: Request[] = [], broken: Address[] = []) =>
+  (
+    holdings: Record<string, Holding[]>,
+    requests: Request[] = [],
+    broken: Address[] = [],
+    slotForProgram: (program: Address) => number = () => 7,
+  ) =>
   (request: Request): Reply => {
     requests.push(request);
     const [owner, { programId }] = request.params;
     if (broken.includes(owner)) return { error: { code: -32000, message: "rate-limit exceeded" } };
     return {
       result: {
-        context: { slot: 7 },
+        context: { slot: slotForProgram(programId) },
         value: (holdings[owner] ?? [])
           .filter(({ program }) => program === programId)
           .map(({ mint, amount }) => ({
@@ -150,6 +155,31 @@ test("sums a wallet's token accounts for a mint under both programs, and records
     ],
     failed: [],
   });
+});
+
+test("uses each mint's latest reply slot and the later reply slot for absent mints", async (t) => {
+  const url = await fakeRpc(
+    t,
+    ledger(
+      { [walletA]: [{ mint, program: tokenProgram, amount: "5" }] },
+      [],
+      [],
+      (program) => (program === tokenProgram ? 100 : 110),
+    ),
+  );
+
+  const batch = await fetchBalances(
+    rpcAt(url),
+    balanceCalls([held(walletA, mint), held(walletA, otherMint)]),
+  );
+
+  assert.deepEqual(
+    batch.records.map(({ id, data: { slot, balance } }) => ({ id, slot, balance })),
+    [
+      { id: `100:${mint}:${walletA}`, slot: 100n, balance: 5n },
+      { id: `110:${otherMint}:${walletA}`, slot: 110n, balance: 0n },
+    ],
+  );
 });
 
 test("queues every call of a wallet whose read fails and keeps the other wallets", async (t) => {
