@@ -19,12 +19,6 @@
   },
   {
     "name": "arbitrum",
-    "table": "erc20_transfers",
-    "package": "evm-erc20-transfers",
-    "settings": "chains/arbitrum"
-  },
-  {
-    "name": "arbitrum",
     "table": "token_bridge",
     "package": "arbitrum-token-bridge"
   },
@@ -44,12 +38,6 @@
     "name": "base",
     "table": "erc20_metadata",
     "package": "evm-erc20-metadata",
-    "settings": "chains/base"
-  },
-  {
-    "name": "base",
-    "table": "erc20_transfers",
-    "package": "evm-erc20-transfers",
     "settings": "chains/base"
   },
   {
@@ -89,12 +77,6 @@
     "name": "ethereum",
     "table": "erc20_metadata",
     "package": "evm-erc20-metadata",
-    "settings": "chains/ethereum"
-  },
-  {
-    "name": "ethereum",
-    "table": "erc20_transfers",
-    "package": "evm-erc20-transfers",
     "settings": "chains/ethereum"
   },
   {

@@ -41,10 +41,6 @@ def test_the_rule_finds_exactly_the_packages_that_export_a_stream_source(entry):
     assert (f"{entry.name}.{entry.table}" in stream_sources(REPO_ROOT)) == exports_stream
 
 
-def test_the_repo_has_a_stream_source():
-    assert "ethereum.erc20_transfers" in stream_sources(REPO_ROOT)
-
-
 def test_start_block_comes_from_env_else_env_example(repo, monkeypatch):
     monkeypatch.setattr(coverage, "read_cursor", lambda source_table: None)
     folder = repo / "ingestion" / "sources" / "evm-erc20-transfers/chains/ethereum"

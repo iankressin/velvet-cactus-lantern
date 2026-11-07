@@ -272,8 +272,8 @@ def compile_analyses(project: Path, names: Sequence[str]) -> tuple[dict, list[st
 
 
 def run_dbt_tests(project: Path, names: Sequence[str], coverages: dict[str, Coverage]) -> Check:
-    """The dbt tests upstream of the analyses. Tests that reconcile history with state, such as
-    tests/erc20_transfers_match_balances.sql, read what each stream source loaded from var('coverage')."""
+    """The dbt tests upstream of the analyses. Tests that reconcile history with state read what each
+    stream source loaded from var('coverage')."""
     loaded = {name: c.to_json() for name, c in coverages.items()}
     variables = ("--vars", json.dumps({"coverage": loaded})) if loaded else ()
     result = dbt(project, "test", "--select", *(f"+{name}" for name in names), *variables)

@@ -5,11 +5,6 @@ sources:
   - name: base
     schema: "{{ env_var('RAW_SCHEMA', 'raw') }}"
     tables:
-      - name: erc20_transfers
-        identifier: base_erc20_transfers
-        columns:
-          - name: id
-            data_tests: [unique, not_null]
       - name: address_code
         identifier: base_address_code
         columns:

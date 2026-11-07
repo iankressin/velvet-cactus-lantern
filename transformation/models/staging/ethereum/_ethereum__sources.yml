@@ -15,11 +15,6 @@ sources:
         columns:
           - name: id
             data_tests: [unique, not_null]
-      - name: erc20_transfers
-        identifier: ethereum_erc20_transfers
-        columns:
-          - name: id
-            data_tests: [unique, not_null]
       - name: uniswap_v3
         identifier: ethereum_uniswap_v3
         columns:

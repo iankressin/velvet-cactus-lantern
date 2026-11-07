@@ -1,16 +1,6 @@
 version: 2
 
 models:
-  - name: stg_base__erc20_transfers
-    columns:
-      - name: id
-        data_tests: [unique, not_null]
-      - name: block_number
-        data_tests: [not_null]
-      - name: tx_hash
-        data_tests: [not_null]
-      - name: token
-        data_tests: [not_null]
   - name: stg_base__address_code
     columns:
       - name: id

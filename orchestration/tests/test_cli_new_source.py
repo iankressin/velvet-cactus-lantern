@@ -230,24 +230,9 @@ def test_a_chain_the_template_lacks_starts_as_a_copy_of_another(repo, pnpm, caps
     assert "Set ingestion/sources/evm-erc721-holdings/chains/polygon/.env.example for polygon" in out
 
 
-def test_copies_the_erc20_transfers_stream_source_under_the_new_table(repo):
-    copy_package(repo, "evm-erc20-transfers")
-
-    assert run(repo, "ethereum", "erc20_approvals", "evm-erc20-transfers") == 0
-
-    package = repo / "ingestion/sources/evm-erc20-approvals"
-    assert [p.name for p in (package / "chains").iterdir()] == ["ethereum"]
-    source_ts = (package / "src/source.ts").read_text()
-    assert 'table: "erc20_approvals"' in source_ts and 'table: "erc20_transfers"' not in source_ts
-    # The stream id labels the run's logs and metrics, so it must not still name the template's table.
-    assert "erc20-transfers" not in source_ts
-    entries = read_sources((repo / SOURCES_FILE).read_text())
-    assert [(e.name, e.package) for e in entries if e.table == "erc20_approvals"] == [("ethereum", "evm-erc20-approvals")]
-
-
 def test_refuses_a_new_chain_of_the_table_a_package_already_loads(repo, pnpm):
-    copy_package(repo, "evm-erc20-transfers")
-    refuses_without_writing(repo, pnpm, "polygon", "erc20_transfers", "evm-erc20-transfers", match="add chains/polygon/ to it")
+    copy_package(repo, "evm-erc20-metadata")
+    refuses_without_writing(repo, pnpm, "polygon", "erc20_metadata", "evm-erc20-metadata", match="add chains/polygon/ to it")
 
 
 def test_refuses_a_template_that_does_not_exist(repo, pnpm):
