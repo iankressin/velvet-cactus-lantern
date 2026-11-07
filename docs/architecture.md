@@ -28,8 +28,6 @@ Every source above is a call source. No stream source ships now.
 
 ```
 .
-├── .claude/skills/blockjuice/  # the skill: SKILL.md routes to workflows/ and references/
-├── answers/<slug>/             # one answer per question, kept out of git: question.yaml, answer.json, answer.md, results/
 ├── docker-compose.yml          # includes infra/docker-compose.yml; run docker compose here
 ├── .env.example                # settings shared by all three tools
 ├── ingestion/                  # pnpm workspace
@@ -54,7 +52,6 @@ Every source above is a call source. No stream source ships now.
 │               ├── source.ts   # the Source definition
 │               └── index.ts    # entry point: runSource(source)
 ├── transformation/             # dbt project (profiles.yml lives here)
-│   ├── analyses/               # one or more dbt analyses per answer
 │   └── models/
 │       ├── staging/<source>/   # sources yml + stg_ models, one folder per source
 │       ├── intermediate/<pipeline>/
@@ -112,19 +109,9 @@ Each layer also runs alone. dbt and the tests read the root settings from the en
 (cd orchestration && uv run pytest)
 ```
 
-## Ask a question
+## The bj CLI
 
-Open the repo in Claude Code and ask a question about chain data, or type `/bj <question>` (`/blockjuice` also works). The blockjuice skill in `.claude/skills/blockjuice/` scopes the question, finds the marts that hold the data or builds them, writes a dbt analysis, checks the result and writes the answer to `answers/<slug>/`:
-
-- `question.yaml` says what the answer counts and over which data.
-- `answer.json` holds the value, the checks and where the data came from. `bj answer` writes it.
-- `answer.md` is the answer in words.
-- `results/` holds one CSV per analysis.
-- `reports/` holds what `bj report` builds: XLSX, PDF and Word files, and the id of the answer's Google Doc. Git ignores it.
-
-`answers/tracked-wallets-eth/` is an example. The skill reads state through the balance sources and history through stream sources, which load events over a range of blocks. No stream source ships now. When a question involves a protocol it doesn't know, it first writes the protocol's contracts, events and their meaning to `catalog/protocols/<name>/`, each proven on a real transaction. `.mcp.json` registers the SQD Portal MCP, which the skill uses to estimate a load and to cross-check a history answer.
-
-The skill runs every mechanical step through the `bj` CLI, whose long name is `blockjuice`. It lives in `orchestration/pipeline/cli/` and reads `.env` itself. Run it from the repo root:
+The `bj` CLI, whose long name is `blockjuice`, sets up a checkout, checks it and runs pipelines. It lives in `orchestration/pipeline/cli/` and reads `.env` itself. Run it from the repo root:
 
 ```sh
 uv run --project orchestration bj --help
@@ -132,16 +119,10 @@ uv run --project orchestration bj --help
 
 | Command | What it does |
 |---|---|
-| `bj answer <slug>` | Runs the answer's analyses, writes `results/` and `answer.json`, and checks the inputs: dbt tests, dead letters, the last successful run and, for history sources, coverage of the window. Exits 1 when a check fails. |
 | `bj run <pipeline>` | Runs one pipeline's Dagster job in-process, after `dbt parse`. |
 | `bj install` | Sets up a checkout and starts nothing: copies each missing `.env` from its `.env.example` and checks them, runs `pnpm install --frozen-lockfile` in `ingestion/`, and runs `dbt parse`. Never overwrites an `.env`. Exits 2 when pnpm is missing, and 1 when an `.env` lacks a required key or pnpm fails. |
 | `bj dev` | Runs `bj install`, starts the stack with `docker compose up -d`, runs the checks of `bj doctor` less Dagster's port, then hands over to `dagster dev`. Exits 2 when port 3000 is in use or a tool is missing, and 1 when a step or check failed. |
 | `bj doctor [--copy-env]` | Checks the local setup: `.env` and each source's `.env` against their `.env.example` (keys by name, never values), the compose ports, the warehouse, the eRPC and Dshackle health endpoints, and the tool versions `mise.toml` pins. `--copy-env` copies `.env.example` to each source `.env` that is missing. Exits 1 when a check failed. |
-| `bj coverage [<source>.<table>]` | Prints the blocks each stream source has loaded: `START_BLOCK` to the cursor Pipes keeps in `raw._sync`, and the addresses it read. No stream source ships now, so it prints `[]`. |
-| `bj check <slug> <name> <passed\|failed> <detail>` | Records a check the agent ran itself, such as a cross-check against Portal, in `answer.json`. Exits 1 when it failed. |
-| `bj blocks <chain> <from> [<to>]` | Turns UTC times into the first and last block of the window, read from SQD Portal for eleven EVM chains, including Ethereum, Arbitrum and Base. An unknown chain name prints the list. |
-| `bj new-source <source> <table> --like <package>` | Does the three steps of Add a source, starting from a copy of an existing source. |
-| `bj report <slug> [--format xlsx,pdf,docx,gdoc]` | Builds the answer's reports from `answer.json`, `answer.md` and `results/`. `gdoc` uploads a Google Doc and needs the Google settings in `.env.example`. |
 
 ## Monitoring
 
@@ -173,7 +154,7 @@ Ingestion code logs through the pino `logger` from `@ingestion/lib`, never `cons
 
 ## Add a source
 
-`uv run --project orchestration bj new-source <source> <table> --like <package>` does steps 1 to 3 from a copy of `ingestion/sources/<package>/`. From an `evm-*` package it creates `evm-<table>/` with only `chains/<source>/`, copying that chain's settings or another chain's settings when no matching folder exists. Then edit the copied `src/`, `addresses.json` and the staging stub. Reading the source from a mart, and scheduling that mart in `PIPELINES`, stay hand steps: see [Add a pipeline](#add-a-pipeline), and `## Adding a chain` in [transformation/README.md](../transformation/README.md). By hand:
+Three steps add a source. To read it from a mart and schedule that mart in `PIPELINES`, see [Add a pipeline](#add-a-pipeline) and `## Adding a chain` in [transformation/README.md](../transformation/README.md).
 
 1. Copy a suitable package to `ingestion/sources/<source>-<table>/` (underscores in the table name become hyphens), rename the package to `@ingestion/<source>-<table>`, edit `src/source.ts`, and run `pnpm install` in `ingestion/`. The source adds its own dependencies (API client, schemas) to its own `package.json`; code that several sources share goes in `lib/`. Chain-specific settings belong with the package under `chains/<chain>/` for `evm-*` sources; shared chain clients live in `lib/src/<chain>/`, whose `index.ts` and `lib/package.json` define the public `@ingestion/lib/<chain>` entry point.
 2. Add `transformation/models/staging/<source>/` with a sources yml and the `stg_` models.
@@ -181,7 +162,7 @@ Ingestion code logs through the pino `logger` from `@ingestion/lib`, never `cons
 
 The dbt source name and table name must match the `name` and `table` the source exports. Dagster keys each dbt source as `[source, table]`, and the ingestion asset uses the same key, so Dagster links them. A test names any pair that drifts.
 
-To read an `evm-*` source on another EVM chain, extend its package instead of copying it. Add `chains/<chain>/` with a `.env.example` that sets `EVM_RPC_URL`, and for `evm-erc20-metadata` an `addresses.json` that lists `tokens`. Run `pnpm generate-sources` in `ingestion/`, and add `transformation/models/staging/<chain>/` like `staging/ethereum/`. The generator calls the package's `forChain(chain)` once per folder in `chains/` and records that folder as the entry's `settings` in `sources.json`, where `bj coverage` and `bj doctor` find it. Dagster passes the chain to the run as `CHAIN`. `loadEnv` reads the environment first, then `chains/<chain>/.env`, its `.env.example` and the package `.env`, ignoring any file's `CHAIN`. The wallet asset CSV can name only Ethereum among EVM chains, so on another chain `evm-eth-balances` and `evm-erc20-balances` fail their run, and `evm-erc20-metadata` reads only the chain's `addresses.json`.
+To read an `evm-*` source on another EVM chain, extend its package instead of copying it. Add `chains/<chain>/` with a `.env.example` that sets `EVM_RPC_URL`, and for `evm-erc20-metadata` an `addresses.json` that lists `tokens`. Run `pnpm generate-sources` in `ingestion/`, and add `transformation/models/staging/<chain>/` like `staging/ethereum/`. The generator calls the package's `forChain(chain)` once per folder in `chains/` and records that folder as the entry's `settings` in `sources.json`, where `bj doctor` finds it. Dagster passes the chain to the run as `CHAIN`. `loadEnv` reads the environment first, then `chains/<chain>/.env`, its `.env.example` and the package `.env`, ignoring any file's `CHAIN`. The wallet asset CSV can name only Ethereum among EVM chains, so on another chain `evm-eth-balances` and `evm-erc20-balances` fail their run, and `evm-erc20-metadata` reads only the chain's `addresses.json`.
 
 A **call source** makes calls, such as RPC reads at one block, and its `src/source.ts` exports a `Source`. Before its first run, check that:
 
@@ -191,7 +172,7 @@ A **call source** makes calls, such as RPC reads at one block, and its `src/sour
 - `extract` reads its addresses inside the run, `addresses.json` with `readJson` from `@ingestion/lib` or the wallet asset CSV with `readWalletAssets` from `@ingestion/lib/wallet-assets`, so a bad file fails the run and `runSource` logs why.
 - `name` and `table` match the dbt source and table and the entry in `sources.json`, as above.
 
-A **stream source** reads blocks through a [Pipes](https://docs.sqd.dev/en/sdk/pipes-sdk) stream instead of making calls. No stream source ships now, so `bj new-source` has none to copy. Its `src/source.ts` exports a `StreamSource`, whose `stream(env)` returns the stream. Map the stream's outputs to records with `.pipe()`, and end its range at `finalizedHead(portalClient(url))` so each run ends. `runSource` pipes the stream into the warehouse, where Pipes keeps the source's cursor in `raw._sync` and saves it in the same transaction as the batch's records. Each run resumes after the cursor and reads at most `maxBlocksPerRun` blocks, plus the rest of the batch that passes it. A stream source has no calls, so it has no dead letters: an error, from Portal or from the warehouse, fails the run, nothing from the batch it was writing commits, and the next run resumes after the last batch that did. To read a stream source again from its start, delete its row from `raw._sync`, whose `id` is `<source>_<table>`.
+A **stream source** reads blocks through a [Pipes](https://docs.sqd.dev/en/sdk/pipes-sdk) stream instead of making calls. No stream source ships now. Its `src/source.ts` exports a `StreamSource`, whose `stream(env)` returns the stream. Map the stream's outputs to records with `.pipe()`, and end its range at `finalizedHead(portalClient(url))` so each run ends. `runSource` pipes the stream into the warehouse, where Pipes keeps the source's cursor in `raw._sync` and saves it in the same transaction as the batch's records. Each run resumes after the cursor and reads at most `maxBlocksPerRun` blocks, plus the rest of the batch that passes it. A stream source has no calls, so it has no dead letters: an error, from Portal or from the warehouse, fails the run, nothing from the batch it was writing commits, and the next run resumes after the last batch that did. To read a stream source again from its start, delete its row from `raw._sync`, whose `id` is `<source>_<table>`.
 
 ## Add a pipeline
 

@@ -1,7 +1,7 @@
 """The sources in ingestion/sources.json: each package's exported `name` and `table`, and its folder.
 
-`pnpm generate-sources` in ingestion/ writes the file from every package's src/source.ts, and
-`bj new-source` runs it after scaffolding. Dagster builds its SOURCES from the file, so no list of
+`pnpm generate-sources` in ingestion/ writes the file from every package's src/source.ts.
+Dagster builds its SOURCES from the file, so no list of
 sources is kept by hand. The orchestration tests fail when the file falls behind the packages.
 """
 
