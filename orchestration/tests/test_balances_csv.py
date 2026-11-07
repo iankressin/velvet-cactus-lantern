@@ -56,13 +56,18 @@ def test_a_failed_write_keeps_the_previous_file(tmp_path):
     assert list(tmp_path.iterdir()) == [path]
 
 
-def test_csv_path_defaults_to_output_balances_csv(monkeypatch):
+def test_csv_path_defaults_to_output_balances_csv_under_the_run_id(monkeypatch):
     monkeypatch.delenv("BALANCES_CSV_PATH", raising=False)
-    assert csv_path() == REPO_ROOT / "output" / "balances.csv"
+    assert csv_path("run-1") == REPO_ROOT / "output" / "run-1_balances.csv"
 
 
-def test_csv_path_reads_balances_csv_path(monkeypatch, tmp_path):
+def test_csv_path_puts_the_run_id_before_the_balances_csv_path_file_name(monkeypatch, tmp_path):
     monkeypatch.setenv("BALANCES_CSV_PATH", "elsewhere/out.csv")
-    assert csv_path() == REPO_ROOT / "elsewhere" / "out.csv"
+    assert csv_path("run-1") == REPO_ROOT / "elsewhere" / "run-1_out.csv"
     monkeypatch.setenv("BALANCES_CSV_PATH", str(tmp_path / "out.csv"))
-    assert csv_path() == tmp_path / "out.csv"
+    assert csv_path("run-1") == tmp_path / "run-1_out.csv"
+
+
+def test_each_run_gets_its_own_file(monkeypatch):
+    monkeypatch.delenv("BALANCES_CSV_PATH", raising=False)
+    assert csv_path("run-1") != csv_path("run-2")

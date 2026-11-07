@@ -18,9 +18,11 @@ from pipeline.project import REPO_ROOT
 from pipeline.warehouse import connect
 
 
-def csv_path() -> Path:
-    """Where the CSV goes: BALANCES_CSV_PATH, from the repo root, or output/balances.csv. An absolute path stays as it is."""
-    return REPO_ROOT / (os.environ.get("BALANCES_CSV_PATH") or "output/balances.csv")
+def csv_path(run_id: str) -> Path:
+    """Where a run's CSV goes: BALANCES_CSV_PATH, from the repo root, or output/balances.csv, with the run
+    id before the file name, so runs never overwrite each other. An absolute path stays as it is."""
+    path = REPO_ROOT / (os.environ.get("BALANCES_CSV_PATH") or "output/balances.csv")
+    return path.with_name(f"{run_id}_{path.name}")
 
 
 # A spreadsheet runs a cell that starts with one of these as a formula. Only an invalid input line can
@@ -70,9 +72,9 @@ def write_csv(path: Path, columns: Sequence[str], rows: Iterable[Sequence[Any]])
     group_name="output",
     kinds={"csv"},
 )
-def balances_csv() -> dg.MaterializeResult:
+def balances_csv(context: dg.AssetExecutionContext) -> dg.MaterializeResult:
     """requested_balances as a CSV file: one row per wallet asset the input asks for, in input order."""
-    path = csv_path()
+    path = csv_path(context.run_id)
     schema = os.environ.get("DBT_SCHEMA") or "analytics"
     statuses: Counter[str] = Counter()
     with closing(connect()) as connection, connection.cursor() as cursor:
