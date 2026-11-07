@@ -27,10 +27,12 @@ def test_ingestion_assets_have_dead_letter_check(source, table):
 
 def test_mart_reads_each_chain_through_its_intermediate_model():
     graph = defs.resolve_asset_graph()
+    # tokens supplies the decimals of ERC-20 and SPL tokens.
     assert graph.get(dg.AssetKey("latest_balances")).parent_keys == {
         dg.AssetKey("int_ethereum_balances"),
         dg.AssetKey("int_solana_balances"),
         dg.AssetKey("int_bitcoin_balances"),
+        dg.AssetKey("tokens"),
     }
     assert graph.get(dg.AssetKey("int_ethereum_balances")).parent_keys == {
         dg.AssetKey("stg_ethereum__eth_balances"),

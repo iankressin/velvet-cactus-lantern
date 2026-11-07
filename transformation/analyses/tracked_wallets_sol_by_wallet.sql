@@ -1,8 +1,8 @@
 select
-    wallet,
+    wallet_address as wallet,
     block_number,
-    round(balance / 1e9, 9) as sol,
+    round(balance_tokens, 9) as sol,
     balance as lamports
 from {{ ref('latest_balances') }}
-where chain = 'solana' and asset_type = 'native'
+where blockchain = 'solana' and asset_type = 'native'
 order by balance desc
