@@ -64,6 +64,60 @@ models:
         description: When the source loaded this reading, within a minute of when it read it.
         data_tests: [not_null]
 
+  - name: requested_balances
+    description: >-
+      One row per wallet asset that the newest load of input/wallet-assets.csv asks for, with its latest balance
+      from latest_balances: what the balances job writes to its CSV. A pair the input repeats appears once, at
+      its first line. Each invalid line appears on its own, with status invalid_input. A pair the newest load
+      does not ask for is absent, even when latest_balances holds it.
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: blockchain
+        data_type: text
+        description: The input line's blockchain cell, as written.
+        data_tests: [not_null]
+      - name: wallet_address
+        data_type: text
+        description: The input line's wallet_address cell, as written. An Ethereum address keeps its checksum case.
+        data_tests: [not_null]
+      - name: token_address
+        data_type: text
+        description: The input line's token_address cell, as written. Null for the chain's native asset.
+      - name: balance_tokens
+        data_type: numeric
+        description: >-
+          latest_balances.balance_tokens for the pair: the balance in whole tokens, exact. Null unless status is
+          ok.
+        data_tests:
+          - not_null:
+              config:
+                where: "status = 'ok'"
+      - name: status
+        data_type: text
+        description: >-
+          ok when the pair has a balance in whole tokens; unknown_decimals when it has a reading but its token has
+          no decimals; no_reading when no run has read the pair yet; invalid_input when the line names no pair, as
+          the source's warning and raw.input_wallet_assets.problem say.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [ok, unknown_decimals, no_reading, invalid_input]
+      - name: block_number
+        data_type: bigint
+        description: latest_balances.block_number, the block or Solana slot of the reading. Null with no reading.
+      - name: read_at
+        data_type: timestamptz
+        description: >-
+          latest_balances.read_at, when the reading loaded. Older than this run when this run could not read the
+          pair and the CSV shows the last good reading. Null with no reading.
+      - name: input_line
+        data_type: integer
+        description: The line of the input file this row answers. The header is line 1.
+        data_tests: [unique, not_null]
+
 unit_tests:
   - name: latest_balances_scales_each_latest_balance_by_its_decimals
     description: >-
@@ -107,3 +161,44 @@ unit_tests:
         union all select 'solana', 'SoLWaLLet1', null, 0, 'native', 9, 0, 300, '2026-11-07 00:00+00'
         union all select 'solana', 'SoLWaLLet1', 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', 2.5, 'spl', 6, 2500000, 300, '2026-11-07 00:00+00'
         union all select 'bitcoin', 'bc1qexample', null, 1.5, 'native', 8, 150000000, 900, '2026-11-07 00:00+00'
+
+  - name: requested_balances_gives_each_requested_pair_one_row
+    description: >-
+      Only the newest load counts; a checksum-case address finds its lowercased reading and keeps its case;
+      a repeated pair keeps its first line; a native request never takes a token's reading; a pair with no
+      reading this run keeps its last good one; each invalid line keeps its own row.
+    model: requested_balances
+    given:
+      - input: ref('stg_input__wallet_assets')
+        format: sql
+        rows: |
+          select 'L1:2' as id, 'L1' as load_id, 2 as line, 'ethereum' as blockchain, '0xOLD' as wallet_address, '' as token_address, 'native' as asset_type, '0xold' as wallet, null::text as token, null::text as problem, '2026-11-06 06:00+00'::timestamptz as _loaded_at
+          union all select 'L2:2', 'L2', 2, 'ethereum', '0xAbC', '', 'native', '0xabc', null, null, '2026-11-07 06:00+00'
+          union all select 'L2:3', 'L2', 3, 'ethereum', '0xAbC', '0xUSDC', 'erc20', '0xabc', '0xusdc', null, '2026-11-07 06:00+00'
+          union all select 'L2:4', 'L2', 4, 'ethereum', '0xabc', '0xnometa', 'erc20', '0xabc', '0xnometa', null, '2026-11-07 06:00+00'
+          union all select 'L2:5', 'L2', 5, 'ethereum', '0xabc', '0xreverted', 'erc20', '0xabc', '0xreverted', null, '2026-11-07 06:00+00'
+          union all select 'L2:6', 'L2', 6, 'solana', 'SoLWaLLet1', '', 'native', 'SoLWaLLet1', null, null, '2026-11-07 06:00+00'
+          union all select 'L2:7', 'L2', 7, 'bitcoin', 'BC1QEXAMPLE', '', 'native', 'bc1qexample', null, null, '2026-11-07 06:00+00'
+          union all select 'L2:8', 'L2', 8, 'ethereum', '0x123', '', null, null, null, 'wallet_address "0x123" is not an Ethereum address', '2026-11-07 06:00+00'
+          union all select 'L2:9', 'L2', 9, 'ethereum', '0x123', '', null, null, null, 'wallet_address "0x123" is not an Ethereum address', '2026-11-07 06:00+00'
+          union all select 'L2:10', 'L2', 10, 'ethereum', '0xABC', '', 'native', '0xabc', null, null, '2026-11-07 06:00+00'
+      - input: ref('latest_balances')
+        format: sql
+        rows: |
+          select 'ethereum' as blockchain, '0xabc' as wallet_address, null::text as token_address, 2::numeric as balance_tokens, 'native' as asset_type, 18 as decimals, 2000000000000000000::numeric as balance, 101::bigint as block_number, '2026-11-07 06:01+00'::timestamptz as read_at
+          union all select 'ethereum', '0xabc', '0xusdc', 1.5, 'erc20', 6, 1500000, 101, '2026-11-07 06:01+00'
+          union all select 'ethereum', '0xabc', '0xnometa', null, 'erc20', null, 42, 101, '2026-11-07 06:01+00'
+          union all select 'ethereum', '0xold', null, 1, 'native', 18, 1000000000000000000, 90, '2026-11-06 06:01+00'
+          union all select 'solana', 'SoLWaLLet1', 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', 2.5, 'spl', 6, 2500000, 300, '2026-11-07 06:01+00'
+          union all select 'bitcoin', 'bc1qexample', null, 1.5, 'native', 8, 150000000, 900, '2026-11-05 06:01+00'
+    expect:
+      format: sql
+      rows: |
+        select 'ethereum' as blockchain, '0xAbC' as wallet_address, null::text as token_address, 2::numeric as balance_tokens, 'ok' as status, 101::bigint as block_number, '2026-11-07 06:01+00'::timestamptz as read_at, 2 as input_line
+        union all select 'ethereum', '0xAbC', '0xUSDC', 1.5, 'ok', 101, '2026-11-07 06:01+00', 3
+        union all select 'ethereum', '0xabc', '0xnometa', null, 'unknown_decimals', 101, '2026-11-07 06:01+00', 4
+        union all select 'ethereum', '0xabc', '0xreverted', null, 'no_reading', null, null, 5
+        union all select 'solana', 'SoLWaLLet1', null, null, 'no_reading', null, null, 6
+        union all select 'bitcoin', 'BC1QEXAMPLE', null, 1.5, 'ok', 900, '2026-11-05 06:01+00', 7
+        union all select 'ethereum', '0x123', null, null, 'invalid_input', null, null, 8
+        union all select 'ethereum', '0x123', null, null, 'invalid_input', null, null, 9
