@@ -1,5 +1,7 @@
 # BlockJuice
 
+Take-home reviewers: start with [TAKE-HOME.md](TAKE-HOME.md).
+
 ![BlockJuice, a blockchain data ELT framework](docs/images/bj-banner-2.png)
 
 A self-hosted ELT framework and warehouse for blockchain data. You can trace any number it gives you back to raw rows, and rebuild it.
