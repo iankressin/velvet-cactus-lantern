@@ -13,7 +13,7 @@ from pipeline.cli.new_source import GENERATE, package_name, run
 from pipeline.sources import SOURCES_FILE, read_sources
 
 # A package that loads one chain. evm-* packages load several; see the chain tests below.
-TEMPLATE = "arbitrum-token-bridge"
+TEMPLATE = "solana-spl-metadata"
 
 
 def fake_generator(root):
@@ -92,7 +92,7 @@ def test_adds_a_table_to_an_existing_source(repo, pnpm, capsys):
     source_ts = (package / "src/source.ts").read_text()
     assert 'name: "ethereum"' in source_ts
     assert 'table: "erc721_holdings"' in source_ts
-    assert 'table: "token_bridge"' not in source_ts
+    assert 'table: "spl_metadata"' not in source_ts
 
     yml_path = repo / "transformation/models/staging/ethereum/_ethereum__sources.yml"
     yml = yml_path.read_text()
@@ -124,7 +124,7 @@ def test_adds_a_table_to_an_existing_source(repo, pnpm, capsys):
 
 
 def test_creates_the_sources_file_of_a_new_source(repo):
-    assert run(repo, "polygon", "token_bridge", TEMPLATE) == 0
+    assert run(repo, "polygon", "nft_balances", TEMPLATE) == 0
 
     yml = (repo / "transformation/models/staging/polygon/_polygon__sources.yml").read_text()
     shape = (repo / "transformation/models/staging/ethereum/_ethereum__sources.yml").read_text()
@@ -132,11 +132,11 @@ def test_creates_the_sources_file_of_a_new_source(repo):
     (polygon,) = yaml.safe_load(yml)["sources"]
     assert polygon["name"] == "polygon"
     assert polygon["schema"] == "{{ env_var('RAW_SCHEMA', 'raw') }}"
-    assert polygon["tables"][0]["identifier"] == "polygon_token_bridge"
-    assert (repo / "transformation/models/staging/polygon/stg_polygon__token_bridge.sql").is_file()
-    source_ts = (repo / "ingestion/sources/polygon-token-bridge/src/source.ts").read_text()
-    assert 'name: "polygon"' in source_ts and 'name: "arbitrum"' not in source_ts
-    assert ("polygon", "token_bridge") in sources_of(repo)
+    assert polygon["tables"][0]["identifier"] == "polygon_nft_balances"
+    assert (repo / "transformation/models/staging/polygon/stg_polygon__nft_balances.sql").is_file()
+    source_ts = (repo / "ingestion/sources/polygon-nft-balances/src/source.ts").read_text()
+    assert 'name: "polygon"' in source_ts and 'name: "solana"' not in source_ts
+    assert ("polygon", "nft_balances") in sources_of(repo)
 
 
 def test_a_failed_generator_leaves_the_files_and_exits_1(repo, monkeypatch, capsys):
@@ -250,7 +250,7 @@ def test_refuses_a_pair_already_in_sources(repo, pnpm):
 
 def test_refuses_a_source_ts_it_cannot_rename_exactly_once(repo, pnpm):
     source_ts = repo / "ingestion/sources" / TEMPLATE / "src/source.ts"
-    source_ts.write_text(source_ts.read_text() + '\n// table: "token_bridge"\n')
+    source_ts.write_text(source_ts.read_text() + '\n// table: "spl_metadata"\n')
     refuses_without_writing(repo, pnpm, "ethereum", "nft_balances", TEMPLATE, match="exactly once")
 
 

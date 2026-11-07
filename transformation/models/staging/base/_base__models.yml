@@ -1,17 +1,6 @@
 version: 2
 
 models:
-  - name: stg_base__op_standard_bridge
-    columns:
-      - name: id
-        data_tests: [unique, not_null]
-      - name: event
-        data_tests:
-          - accepted_values:
-              arguments:
-                values: [ERC20BridgeInitiated, ERC20BridgeFinalized]
-      - name: amount
-        data_tests: [not_null]
   - name: stg_base__chainlink_price_feeds
     columns:
       - name: id

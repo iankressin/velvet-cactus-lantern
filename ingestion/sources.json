@@ -12,11 +12,6 @@
     "settings": "chains/arbitrum"
   },
   {
-    "name": "arbitrum",
-    "table": "token_bridge",
-    "package": "arbitrum-token-bridge"
-  },
-  {
     "name": "base",
     "table": "chainlink_price_feeds",
     "package": "evm-chainlink-price-feeds",
@@ -26,12 +21,6 @@
     "name": "base",
     "table": "erc20_metadata",
     "package": "evm-erc20-metadata",
-    "settings": "chains/base"
-  },
-  {
-    "name": "base",
-    "table": "op_standard_bridge",
-    "package": "evm-op-standard-bridge",
     "settings": "chains/base"
   },
   {

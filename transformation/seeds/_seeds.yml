@@ -1,19 +1,6 @@
 version: 2
 
 seeds:
-  - name: arbitrum_token_gateways
-    description: >-
-      The rows are the default gateway and the gateways that the L2GatewayRouter, 0x5288c571fd7ad117bea99bf60fe0846c4e84f933, returned from getGateway for UNI,
-      USDC, WETH, DAI, LPT, GRT, wstETH, ARB and USDS on Ethereum, read at Arbitrum block 521602006 on
-      2026-11-05. A token whose gateway is not here needs a row, or its moves leave no trace in the marts;
-      the warn test on stg_arbitrum__token_bridge.contract lists such logs.
-    config:
-      column_types:
-        address: text
-        name: text
-    columns:
-      - name: address
-        data_tests: [unique, not_null]
   - name: chainlink_feeds
     description: >-
       One row per Chainlink aggregator an evm-chainlink-price-feeds source loads, with the feed it serves.
