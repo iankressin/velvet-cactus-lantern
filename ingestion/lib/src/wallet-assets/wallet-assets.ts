@@ -60,21 +60,34 @@ const chains: Record<Blockchain, ChainRules> = {
 const isBlockchain = (value: string | undefined): value is Blockchain =>
   value !== undefined && Object.hasOwn(chains, value);
 
+/** One line of the wallet asset CSV: its cells as written, and the wallet asset it names or why it names none. */
+export type WalletAssetLine = {
+  /** The line the row ends on. The header is line 1. */
+  line: number;
+  /** The cells as written. A missing cell is "". */
+  blockchain: string;
+  walletAddress: string;
+  tokenAddress: string;
+  /** Null exactly when `problems` is not empty. */
+  asset: WalletAsset | null;
+  problems: string[];
+};
+
 /** Native when token_address is empty or missing, else the chain's token type: null on a chain without tokens. */
-const assetTypeOf = (blockchain: Blockchain, row: CsvRow) =>
-  row.record.tokenAddress ? chains[blockchain].tokenType : "native";
+const assetTypeOf = (blockchain: Blockchain, tokenAddress: string | undefined) =>
+  tokenAddress ? chains[blockchain].tokenType : "native";
 
 /**
- * Whether a read of `blockchain`, and of `assetType` when given, takes the row. A token row on a
- * chain without tokens counts as part of every read of that chain, so its error reaches that chain's source.
+ * Whether a read of `blockchain`, and of `assetType` when given, takes the line. A token line on a
+ * chain without tokens counts as part of every read of that chain, so its warning reaches that chain's source.
  */
-function picks(row: CsvRow, blockchain: Blockchain, assetType: AssetType | undefined): boolean {
-  if (row.record.blockchain !== blockchain) return false;
-  const type = assetTypeOf(blockchain, row);
+function picks(line: WalletAssetLine, blockchain: Blockchain, assetType: AssetType | undefined): boolean {
+  if (line.blockchain !== blockchain) return false;
+  const type = assetTypeOf(blockchain, line.tokenAddress);
   return assetType === undefined || type === null || type === assetType;
 }
 
-/** What is wrong with a picked row, in the words of the person who fixes the file. */
+/** What is wrong with a row on a known chain, in the words of the person who fixes the file. */
 function problemsWith(blockchain: Blockchain, row: CsvRow, columnCount: number): string[] {
   // A short or long row's cells may sit under the wrong columns, so nothing else about it is checked.
   if (row.cellCount !== columnCount) return [`has ${row.cellCount} cells; the header has ${columnCount}`];
@@ -100,16 +113,41 @@ function walletAssetOf(blockchain: Blockchain, row: CsvRow): WalletAsset {
   // The chain's table stands behind each address, which the union's types cannot see.
   return {
     blockchain,
-    assetType: assetTypeOf(blockchain, row),
+    assetType: assetTypeOf(blockchain, token),
     walletAddress: chain.address(row.record.walletAddress ?? ""),
     tokenAddress: token ? chain.address(token) : null,
   } as WalletAsset;
 }
 
+/** A row's cells as written, with its wallet asset or its problems. */
+function lineOf(row: CsvRow, columnCount: number): WalletAssetLine {
+  const { blockchain = "", walletAddress = "", tokenAddress = "" } = row.record;
+  const cells = { line: row.line, blockchain, walletAddress, tokenAddress };
+  if (!isBlockchain(blockchain)) {
+    return { ...cells, asset: null, problems: [`blockchain "${blockchain}" is not ethereum, solana or bitcoin`] };
+  }
+  const problems = problemsWith(blockchain, row, columnCount);
+  return { ...cells, asset: problems.length === 0 ? walletAssetOf(blockchain, row) : null, problems };
+}
+
+/**
+ * Every line of CSV text, repeats included, in file order. `file` names the input in errors. Throws
+ * only for a problem with the whole file: a missing column, a BOM, no rows.
+ */
+export function parseWalletAssetLines(text: string, file: string): WalletAssetLine[] {
+  const { columns, rows } = parseCsv(text, file, ["blockchain", "wallet_address", "token_address"]);
+  return rows.map((row) => lineOf(row, columns.length));
+}
+
+/** Every line of the CSV file at `path`, from the working directory. See parseWalletAssetLines. */
+export function readWalletAssetLines(path: string): WalletAssetLine[] {
+  return parseWalletAssetLines(readFileSync(path, "utf8"), path);
+}
+
 /**
  * The wallet assets in CSV text on `blockchain`, of `assetType` when given. `file` names the input in
- * errors. Only the rows this read picks can fail it. Rows on an unknown chain, which no read picks, and
- * repeated rows go to `warn`.
+ * messages. Bad rows this read picks, rows on an unknown chain, which no read picks, and repeated rows
+ * go to `warn`; the read skips them. Only a problem with the whole file throws.
  */
 export function parseWalletAssets<B extends Blockchain, T extends AssetType<B> = AssetType<B>>(
   text: string,
@@ -118,34 +156,32 @@ export function parseWalletAssets<B extends Blockchain, T extends AssetType<B> =
   assetType?: T,
   warn: (message: string) => void = (message) => logger.warn(message),
 ): Picked<B, T>[] {
-  const { columns, rows } = parseCsv(text, file, ["blockchain", "wallet_address", "token_address"]);
+  const lines = parseWalletAssetLines(text, file);
 
-  const unread = rows
-    .filter((row) => !isBlockchain(row.record.blockchain))
-    .map((row) => `  line ${row.line}: blockchain "${row.record.blockchain ?? ""}" is not ethereum, solana or bitcoin`);
+  const unread = lines
+    .filter((line) => !isBlockchain(line.blockchain))
+    .map((line) => `  line ${line.line}: blockchain "${line.blockchain}" is not ethereum, solana or bitcoin`);
   if (unread.length > 0) warn(`Rows in ${file} that no source reads:\n${unread.join("\n")}`);
 
-  const picked = rows.filter((row) => picks(row, blockchain, assetType));
-  const problems = picked.flatMap((row) =>
-    problemsWith(blockchain, row, columns.length).map((problem) => `  line ${row.line}: ${problem}`),
-  );
+  const picked = lines.filter((line) => picks(line, blockchain, assetType));
+  const problems = picked.flatMap((line) => line.problems.map((problem) => `  line ${line.line}: ${problem}`));
   if (problems.length > 0) {
     const read = assetType === undefined ? blockchain : `${blockchain} ${assetType}`;
-    throw new Error(`Invalid ${read} rows in ${file}:\n${problems.join("\n")}`);
+    warn(`Invalid ${read} rows in ${file}, skipped:\n${problems.join("\n")}`);
   }
 
   const firstLines = new Map<string, number>();
   const assets: WalletAsset[] = [];
   const repeats: string[] = [];
-  for (const row of picked) {
-    const asset = walletAssetOf(blockchain, row);
+  for (const { line, asset } of picked) {
+    if (asset === null) continue;
     const key = `${asset.walletAddress}:${asset.tokenAddress ?? ""}`;
     const first = firstLines.get(key);
     if (first === undefined) {
-      firstLines.set(key, row.line);
+      firstLines.set(key, line);
       assets.push(asset);
     } else {
-      repeats.push(`  line ${row.line} repeats line ${first}`);
+      repeats.push(`  line ${line} repeats line ${first}`);
     }
   }
   if (repeats.length > 0) warn(`Repeated rows in ${file}, read once each:\n${repeats.join("\n")}`);
@@ -157,8 +193,8 @@ export function parseWalletAssets<B extends Blockchain, T extends AssetType<B> =
  * The wallet assets on `blockchain`, of `assetType` when given, in the CSV file at `path`, from the
  * working directory. The file needs the columns blockchain, wallet_address and token_address, in any
  * order; other columns are ignored. An empty token_address means the chain's native asset, and
- * Bitcoin rows take no token. The file must be plain UTF-8 CSV, without a BOM. Call it inside a run,
- * not at import, so runSource logs a bad file.
+ * Bitcoin rows take no token. The file must be plain UTF-8 CSV, without a BOM. A bad row is skipped
+ * with a warning. Call it inside a run, not at import, so runSource logs a bad file.
  */
 export function readWalletAssets<B extends Blockchain, T extends AssetType<B> = AssetType<B>>(
   path: string,

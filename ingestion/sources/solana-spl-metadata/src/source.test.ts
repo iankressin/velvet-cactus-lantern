@@ -77,11 +77,15 @@ test("reads each spl mint in the wallet asset CSV and in addresses.json once", a
   assert.deepEqual(batch?.failed, []);
 });
 
-test("a bad spl row fails the run, not the import", async (t) => {
-  const csv = await packageFolder(t, JSON.stringify({ mints: [] }), `solana,${wallet},nope`);
-  await assert.rejects(firstBatch({ SOLANA_RPC_URL: unreachable, WALLET_ASSETS_CSV: csv }), {
-    message: `Invalid solana spl rows in ${csv}:\n  line 2: token_address "nope" is not a Solana address; leave it empty for SOL`,
-  });
+test("a bad spl row is skipped, and the run reads the rest", async (t) => {
+  const csv = await packageFolder(t, JSON.stringify({ mints: [] }), `solana,${wallet},${usdc}`, `solana,${wallet},nope`);
+  // No account at the mint or its Metaplex address, so the mint reads as nulls.
+  const url = await rpcAnswering(t, { context: { slot: 1 }, value: [null, null] });
+
+  const batch = await firstBatch({ SOLANA_RPC_URL: url, WALLET_ASSETS_CSV: csv });
+
+  assert.deepEqual(batch?.records.map(({ data }) => data.mint), [usdc]);
+  assert.deepEqual(batch?.failed, []);
 });
 
 test("a bad mint in addresses.json fails the run, not the import", async (t) => {

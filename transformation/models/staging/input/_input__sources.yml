@@ -1,0 +1,12 @@
+version: 2
+
+# Source name + table name must match the ingestion Source's `name` + `table`.
+sources:
+  - name: input
+    schema: "{{ env_var('RAW_SCHEMA', 'raw') }}"
+    tables:
+      - name: wallet_assets
+        identifier: input_wallet_assets
+        columns:
+          - name: id
+            data_tests: [unique, not_null]

@@ -39,11 +39,15 @@ async function firstBatch(chain: string, settings: { WALLET_ASSETS_CSV: string; 
   for await (const batch of source.extract(env, [])) return batch;
 }
 
-test("a bad native row fails the run, not the import", async (t) => {
-  const csv = await walletAssets(t, "ethereum,0xnot,");
-  await assert.rejects(firstBatch("ethereum", { WALLET_ASSETS_CSV: csv }), {
-    message: `Invalid ethereum native rows in ${csv}:\n  line 2: wallet_address "0xnot" is not an Ethereum address`,
-  });
+test("a bad native row is skipped, and the run reads the rest", async (t) => {
+  const csv = await walletAssets(t, `ethereum,${vitalik},`, "ethereum,0xnot,");
+
+  const batch = await firstBatch("ethereum", { WALLET_ASSETS_CSV: csv, EVM_RPC_URL: await refusingNode(t) });
+
+  assert.deepEqual(
+    batch?.failed.map(({ call }) => call),
+    [{ kind: "eth_balance", block: 5, wallet: vitalik.toLowerCase() }],
+  );
 });
 
 test("a bad row that only another source reads does not fail this one", async (t) => {

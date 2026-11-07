@@ -43,10 +43,22 @@ const firstBatch = (env: { SOLANA_RPC_URL: string; WALLET_ASSETS_CSV: string }) 
 
 const unreachable = "http://127.0.0.1:1";
 
-test("a bad spl row fails the run, not the import", async (t) => {
+test("a bad spl row is skipped, and the run reads the rest", async (t) => {
   const path = await csvFile(t, HEADER, `solana,${wallet},${usdc}`, `solana,nope,${usdc}`);
-  await assert.rejects(firstBatch({ SOLANA_RPC_URL: unreachable, WALLET_ASSETS_CSV: path }), {
-    message: `Invalid solana spl rows in ${path}:\n  line 3: wallet_address "nope" is not a Solana address`,
+  // The wallet holds no token account for the mint, so it reads 0.
+  const url = await rpcAnswering(t, { context: { slot: 1 }, value: [] });
+
+  const { value: batch } = await firstBatch({ SOLANA_RPC_URL: url, WALLET_ASSETS_CSV: path });
+
+  assert.deepEqual(batch, {
+    records: [
+      {
+        id: `1:${usdc}:${wallet}`,
+        callId: `${usdc}:${wallet}`,
+        data: { slot: 1n, mint: usdc, wallet, balance: 0n },
+      },
+    ],
+    failed: [],
   });
 });
 

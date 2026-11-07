@@ -26,7 +26,8 @@ latest as (
         asset,
         decimals,
         block_number,
-        balance
+        balance,
+        _loaded_at
     from balances
     order by chain, wallet, asset, block_number desc, _loaded_at desc
 ),
@@ -52,5 +53,6 @@ select
     asset_type,
     asset_decimals as decimals,
     balance,
-    block_number
+    block_number,
+    _loaded_at as read_at
 from scaled

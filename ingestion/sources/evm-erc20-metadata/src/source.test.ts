@@ -265,11 +265,14 @@ test("reads each erc20 token in the wallet asset CSV and in addresses.json once"
   assert.deepEqual(batch?.failed, []);
 });
 
-test("a bad erc20 row fails the run, not the import", async (t) => {
-  const csv = await packageFolder(t, "ethereum", JSON.stringify({ tokens: [] }), `ethereum,${wallet},0xnot`);
-  await assert.rejects(firstBatch("ethereum", { WALLET_ASSETS_CSV: csv }), {
-    message: `Invalid ethereum erc20 rows in ${csv}:\n  line 2: token_address "0xnot" is not an Ethereum address; leave it empty for ETH`,
-  });
+test("a bad erc20 row is skipped, and the run reads the rest", async (t) => {
+  const csv = await packageFolder(t, "ethereum", JSON.stringify({ tokens: [] }), `ethereum,${wallet},${usdc}`, `ethereum,${wallet},0xnot`);
+  const { url } = await node(t, answering({}));
+
+  const batch = await firstBatch("ethereum", { WALLET_ASSETS_CSV: csv, EVM_RPC_URL: url });
+
+  assert.deepEqual(batch?.records.map(({ data }) => data.token), [usdc]);
+  assert.deepEqual(batch?.failed, []);
 });
 
 test("a chain the wallet asset CSV cannot hold reads only its addresses.json", async (t) => {
