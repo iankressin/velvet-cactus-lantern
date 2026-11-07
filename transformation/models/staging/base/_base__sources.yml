@@ -5,11 +5,6 @@ sources:
   - name: base
     schema: "{{ env_var('RAW_SCHEMA', 'raw') }}"
     tables:
-      - name: chainlink_price_feeds
-        identifier: base_chainlink_price_feeds
-        columns:
-          - name: id
-            data_tests: [unique, not_null]
       - name: erc20_metadata
         identifier: base_erc20_metadata
         columns:

@@ -1,48 +1,20 @@
 [
   {
     "name": "arbitrum",
-    "table": "chainlink_price_feeds",
-    "package": "evm-chainlink-price-feeds",
-    "settings": "chains/arbitrum"
-  },
-  {
-    "name": "arbitrum",
     "table": "erc20_metadata",
     "package": "evm-erc20-metadata",
     "settings": "chains/arbitrum"
   },
   {
     "name": "base",
-    "table": "chainlink_price_feeds",
-    "package": "evm-chainlink-price-feeds",
-    "settings": "chains/base"
-  },
-  {
-    "name": "base",
     "table": "erc20_metadata",
     "package": "evm-erc20-metadata",
     "settings": "chains/base"
-  },
-  {
-    "name": "binance",
-    "table": "candles",
-    "package": "binance-candles"
   },
   {
     "name": "bitcoin",
     "table": "btc_balances",
     "package": "bitcoin-btc-balances"
-  },
-  {
-    "name": "coinbase",
-    "table": "candles",
-    "package": "coinbase-candles"
-  },
-  {
-    "name": "ethereum",
-    "table": "chainlink_price_feeds",
-    "package": "evm-chainlink-price-feeds",
-    "settings": "chains/ethereum"
   },
   {
     "name": "ethereum",

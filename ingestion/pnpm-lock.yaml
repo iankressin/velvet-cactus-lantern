@@ -64,15 +64,6 @@ importers:
         specifier: ^8.11.0
         version: 8.23.1
 
-  sources/binance-candles:
-    dependencies:
-      '@ingestion/lib':
-        specifier: workspace:*
-        version: link:../../lib
-      zod:
-        specifier: ^4.6.7
-        version: 4.6.7
-
   sources/bitcoin-btc-balances:
     dependencies:
       '@ingestion/lib':
@@ -81,31 +72,6 @@ importers:
       zod:
         specifier: ^4.6.7
         version: 4.6.7
-
-  sources/coinbase-candles:
-    dependencies:
-      '@ingestion/lib':
-        specifier: workspace:*
-        version: link:../../lib
-      zod:
-        specifier: ^4.6.7
-        version: 4.6.7
-
-  sources/evm-chainlink-price-feeds:
-    dependencies:
-      '@ingestion/lib':
-        specifier: workspace:*
-        version: link:../../lib
-      '@subsquid/pipes':
-        specifier: 1.0.0-beta.11
-        version: 1.0.0-beta.11(@opentelemetry/api@1.10.0)(@subsquid/logger@1.6.0)(better-sqlite3@12.4.5)(drizzle-orm@0.44.7(@electric-sql/pglite@0.5.13)(@opentelemetry/api@1.10.0)(@types/pg@8.23.1)(better-sqlite3@12.4.5)(pg@8.23.1))(pg@8.23.1)
-      zod:
-        specifier: ^4.6.7
-        version: 4.6.7
-    devDependencies:
-      viem:
-        specifier: ^2.57.16
-        version: 2.57.16(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.6.7)
 
   sources/evm-erc20-balances:
     dependencies:

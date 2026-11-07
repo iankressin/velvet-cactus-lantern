@@ -31,7 +31,7 @@ PASS, WARN, FAIL = "PASS", "WARN", "FAIL"
 #   RPC_BATCH_SIZE     ingestion/lib/src/evm/env.ts: 100
 #   RPC_MAX_CONCURRENCY ingestion/lib/src/evm/env.ts: 16
 #   PORTAL_URL         ingestion/sources/*/src/source.ts: the public Portal
-#   END_BLOCK          ingestion/sources/evm-chainlink-price-feeds/src/source.ts: unset reads to the head
+#   END_BLOCK          ingestion/sources/*/src/source.ts: unset reads to the head
 #   WALLET_ASSETS_CSV  ingestion/lib/src/wallet-assets/env.ts: ../../wallet-assets.csv
 OPTIONAL_KEYS = frozenset(
     {
