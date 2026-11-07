@@ -34,13 +34,10 @@ models:
       - name: balance_tokens
         data_type: numeric
         description: >-
-          The balance in whole tokens: balance scaled by decimals, exact, with no trailing zeros. Null when the
-          decimals are unknown; the warning from this column's test lists those tokens, which are missing from the
-          addresses.json of evm-erc20-metadata or solana-spl-metadata.
-        data_tests:
-          - not_null:
-              config:
-                severity: warn
+          The balance in whole tokens: balance scaled by decimals, exact, with no trailing zeros. Null when tokens
+          has no decimals for the token: it is missing from the metadata sources, the contract has no decimals(),
+          or the Solana address is not a mint. The warn test latest_balances_tokens_without_decimals counts those
+          tokens and lists them in analytics_dbt_test__audit.latest_balances_tokens_without_decimals.
       - name: asset_type
         data_type: text
         description: Whether this is a native, erc20, or spl balance.
