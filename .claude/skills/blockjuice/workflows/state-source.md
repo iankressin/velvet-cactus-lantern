@@ -16,7 +16,7 @@ A state source reads values that a view function or RPC method returns at one bl
    - Code that more than one source of a chain needs goes in `ingestion/lib/src/<chain>/`, exported from its `index.ts`.
    - A revert at a pinned block is a fact to record as null, not a failure to retry. Copy `balanceAt` in `evm-erc20-balances/src/balances.ts`.
    - Reads at past blocks need an archive RPC. Solana serves current state only, so a Solana call has no block, and the record's id takes the slot from the reply.
-3. Put the addresses to read in `addresses.json`, in `chains/<chain>/` for an `evm-*` package. A balance source reads `ingestion/wallet-assets.csv` instead, through `readWalletAssets`. Copy `.env.example` to `.env`.
+3. Put the addresses to read in `addresses.json`, in `chains/<chain>/` for an `evm-*` package. A balance source reads `ingestion/wallet-assets.csv` instead, through `readWalletAssets`. A metadata source reads the CSV's tokens as well as its `addresses.json`. Copy `.env.example` to `.env`.
 4. Update the copied tests in `src/*.test.ts`. Run `pnpm test` in the package and `pnpm typecheck` in `ingestion/`.
 5. Shape the staging model: cast each field out of `data` into its own column, as `stg_ethereum__erc20_balances.sql` does. Add column tests to the folder's `_<chain>__models.yml`.
 6. Run it once with `pnpm ingest` in the package, as `CHAIN=<chain> pnpm ingest` for an `evm-*` package. Check that `raw.<chain>_<table>` has rows and that `raw._dead_letters` has none for `<chain>_<table>`.
