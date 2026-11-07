@@ -17,7 +17,4 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 
-# answers: what the skill and bj answer write for each question stays local
-answers/
-
 .claude/worktrees/
