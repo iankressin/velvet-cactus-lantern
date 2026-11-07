@@ -1,4 +1,4 @@
-# eRPC proxy over free public Ethereum mainnet, Arbitrum One, Base and Solana RPCs.
+# eRPC proxy over free public Ethereum mainnet and Solana RPCs.
 # Endpoints for clients: http://localhost:4000/main/evm/<chainId>, such as evm/1 (alias: /main/ethereum).
 # Docs: https://docs.erpc.cloud
 
@@ -111,14 +111,6 @@ projects:
         alias: ethereum
         evm:
           chainId: 1
-      - architecture: evm
-        alias: arbitrum
-        evm:
-          chainId: 42161
-      - architecture: evm
-        alias: base
-        evm:
-          chainId: 8453
       - architecture: svm
         alias: solana
         svm:
@@ -208,22 +200,6 @@ projects:
         endpoint: https://eth.blockrazor.xyz
         tags: [pruned]
         evm: *eth-pruned
-
-      # ── Arbitrum One and Base ─────────────────────────────────────────
-      # The chains' own public RPCs, added 2026-11-05 for reading code at the latest block. Both keep
-      # recent state only, so a read at an old block needs an archive upstream.
-      - id: arbitrum-public
-        type: evm
-        endpoint: https://arb1.arbitrum.io/rpc
-        tags: [pruned]
-        evm:
-          chainId: 42161
-      - id: base-public
-        type: evm
-        endpoint: https://mainnet.base.org
-        tags: [pruned]
-        evm:
-          chainId: 8453
 
       # ── Solana mainnet-beta ───────────────────────────────────────────
       - id: sol-foundation

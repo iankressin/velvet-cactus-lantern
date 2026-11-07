@@ -13,7 +13,7 @@ from pipeline.cli.new_source import GENERATE, package_name, run
 from pipeline.sources import SOURCES_FILE, read_sources
 
 # A package that loads one chain. evm-* packages load several; see the chain tests below.
-TEMPLATE = "arbitrum-token-bridge"
+TEMPLATE = "solana-spl-metadata"
 
 
 def fake_generator(root):
@@ -92,7 +92,7 @@ def test_adds_a_table_to_an_existing_source(repo, pnpm, capsys):
     source_ts = (package / "src/source.ts").read_text()
     assert 'name: "ethereum"' in source_ts
     assert 'table: "erc721_holdings"' in source_ts
-    assert 'table: "token_bridge"' not in source_ts
+    assert 'table: "spl_metadata"' not in source_ts
 
     yml_path = repo / "transformation/models/staging/ethereum/_ethereum__sources.yml"
     yml = yml_path.read_text()
@@ -124,7 +124,7 @@ def test_adds_a_table_to_an_existing_source(repo, pnpm, capsys):
 
 
 def test_creates_the_sources_file_of_a_new_source(repo):
-    assert run(repo, "polygon", "token_bridge", TEMPLATE) == 0
+    assert run(repo, "polygon", "nft_balances", TEMPLATE) == 0
 
     yml = (repo / "transformation/models/staging/polygon/_polygon__sources.yml").read_text()
     shape = (repo / "transformation/models/staging/ethereum/_ethereum__sources.yml").read_text()
@@ -132,11 +132,11 @@ def test_creates_the_sources_file_of_a_new_source(repo):
     (polygon,) = yaml.safe_load(yml)["sources"]
     assert polygon["name"] == "polygon"
     assert polygon["schema"] == "{{ env_var('RAW_SCHEMA', 'raw') }}"
-    assert polygon["tables"][0]["identifier"] == "polygon_token_bridge"
-    assert (repo / "transformation/models/staging/polygon/stg_polygon__token_bridge.sql").is_file()
-    source_ts = (repo / "ingestion/sources/polygon-token-bridge/src/source.ts").read_text()
-    assert 'name: "polygon"' in source_ts and 'name: "arbitrum"' not in source_ts
-    assert ("polygon", "token_bridge") in sources_of(repo)
+    assert polygon["tables"][0]["identifier"] == "polygon_nft_balances"
+    assert (repo / "transformation/models/staging/polygon/stg_polygon__nft_balances.sql").is_file()
+    source_ts = (repo / "ingestion/sources/polygon-nft-balances/src/source.ts").read_text()
+    assert 'name: "polygon"' in source_ts and 'name: "solana"' not in source_ts
+    assert ("polygon", "nft_balances") in sources_of(repo)
 
 
 def test_a_failed_generator_leaves_the_files_and_exits_1(repo, monkeypatch, capsys):
@@ -187,8 +187,8 @@ def copy_package(repo, package):
 
 
 def test_copies_a_package_that_loads_several_chains_with_only_the_new_chain(repo, pnpm, capsys):
-    # evm-erc20-metadata loads arbitrum, base and ethereum, each with an addresses.json.
     template = copy_package(repo, "evm-erc20-metadata")
+    shutil.copytree(template / "chains/ethereum", template / "chains/base")
     (template / "chains/ethereum/.env").write_text("EVM_RPC_URL=http://secret\n")
     (template / "chains/ethereum/factory.sqlite").write_bytes(b"pools of another source")
 
@@ -217,37 +217,22 @@ def test_a_chain_the_template_lacks_starts_as_a_copy_of_another(repo, pnpm, caps
 
     assert run(repo, "polygon", "erc721_holdings", "evm-erc20-metadata") == 0
 
-    # The template's first chain in sources.json is arbitrum.
+    # The template's first chain in sources.json is ethereum.
     chain = repo / "ingestion/sources/evm-erc721-holdings/chains/polygon"
     for name in (".env.example", "addresses.json"):
-        assert (chain / name).read_text() == (template / "chains/arbitrum" / name).read_text()
+        assert (chain / name).read_text() == (template / "chains/ethereum" / name).read_text()
     assert ("polygon", "erc721_holdings") in sources_of(repo)
     out = capsys.readouterr().out
     assert (
         "created ingestion/sources/evm-erc721-holdings/chains/polygon/ "
-        "(a copy of ingestion/sources/evm-erc20-metadata/chains/arbitrum/)"
+        "(a copy of ingestion/sources/evm-erc20-metadata/chains/ethereum/)"
     ) in out
     assert "Set ingestion/sources/evm-erc721-holdings/chains/polygon/.env.example for polygon" in out
 
 
-def test_copies_the_erc20_transfers_stream_source_under_the_new_table(repo):
-    copy_package(repo, "evm-erc20-transfers")
-
-    assert run(repo, "ethereum", "erc20_approvals", "evm-erc20-transfers") == 0
-
-    package = repo / "ingestion/sources/evm-erc20-approvals"
-    assert [p.name for p in (package / "chains").iterdir()] == ["ethereum"]
-    source_ts = (package / "src/source.ts").read_text()
-    assert 'table: "erc20_approvals"' in source_ts and 'table: "erc20_transfers"' not in source_ts
-    # The stream id labels the run's logs and metrics, so it must not still name the template's table.
-    assert "erc20-transfers" not in source_ts
-    entries = read_sources((repo / SOURCES_FILE).read_text())
-    assert [(e.name, e.package) for e in entries if e.table == "erc20_approvals"] == [("ethereum", "evm-erc20-approvals")]
-
-
 def test_refuses_a_new_chain_of_the_table_a_package_already_loads(repo, pnpm):
-    copy_package(repo, "evm-erc20-transfers")
-    refuses_without_writing(repo, pnpm, "polygon", "erc20_transfers", "evm-erc20-transfers", match="add chains/polygon/ to it")
+    copy_package(repo, "evm-erc20-metadata")
+    refuses_without_writing(repo, pnpm, "polygon", "erc20_metadata", "evm-erc20-metadata", match="add chains/polygon/ to it")
 
 
 def test_refuses_a_template_that_does_not_exist(repo, pnpm):
@@ -265,7 +250,7 @@ def test_refuses_a_pair_already_in_sources(repo, pnpm):
 
 def test_refuses_a_source_ts_it_cannot_rename_exactly_once(repo, pnpm):
     source_ts = repo / "ingestion/sources" / TEMPLATE / "src/source.ts"
-    source_ts.write_text(source_ts.read_text() + '\n// table: "token_bridge"\n')
+    source_ts.write_text(source_ts.read_text() + '\n// table: "spl_metadata"\n')
     refuses_without_writing(repo, pnpm, "ethereum", "nft_balances", TEMPLATE, match="exactly once")
 
 

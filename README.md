@@ -6,7 +6,7 @@ A self-hosted ELT framework and warehouse for blockchain data. You can trace any
 
 If you advise funds, treasuries or protocol teams, you know where on-chain work gets awkward. Explorers are fine for a quick look. Shared analytics platforms work until you need to own the query, the join or how long the data is kept.
 
-BlockJuice runs in your environment. It loads chain data into your Postgres, transforms it with dbt and schedules the work with Dagster. Balances, transfers, trades and labels sit next to the rest of your data, under keys and policies you set.
+BlockJuice runs in your environment. It loads chain data into your Postgres, transforms it with dbt and schedules the work with Dagster. Balances and token metadata sit next to the rest of your data, under keys and policies you set.
 
 The result is a pipeline an analyst can read, change and hand to a client. Every step is in the repo for anyone to check.
 
@@ -25,11 +25,7 @@ When something breaks, you can see it. `bj doctor` checks your env and services 
 | You need | What ships |
 |---|---|
 | Point-in-time balances | ETH, ERC-20, SOL, SPL, BTC → `analytics.latest_balances` |
-| Transfer history | ERC-20 on Ethereum, Arbitrum, Base → `analytics.erc20_transfers` |
-| DEX activity | Uniswap v2/v3/v4 → `analytics.dex_trades` |
-| Address labels | Code + exchange seeds → `analytics.address_labels` |
-| Token metadata | Name, symbol and decimals of listed ERC-20 tokens on Ethereum, Arbitrum, Base and SPL tokens on Solana → `analytics.tokens` |
-| Token prices | Binance and Coinbase candles for any listed token → `analytics.token_prices`; Chainlink rounds on Ethereum, Arbitrum, Base → `analytics.oracle_prices` |
+| Token metadata | Name, symbol and decimals of listed ERC-20 tokens on Ethereum and SPL tokens on Solana → `analytics.tokens` |
 | How it runs | TypeScript extract/load → dbt → Dagster, plus Docker for the warehouse, eRPC, Dshackle and monitoring |
 | How you drive it | `bj` CLI (`dev`, `doctor`, `run`, `answer`, `report`, `new-source`, …) and the blockjuice skill |
 
@@ -67,8 +63,8 @@ When Dagster is up, open http://localhost:3000 and materialize the assets you ne
 ## How you use it
 
 1. Set up once with `bj install`, start the stack and Dagster with `bj dev`, then open the Dagster UI.
-2. List the wallets and tokens whose balances you want in `ingestion/wallet-assets.csv`, one `blockchain,wallet_address,token_address` row each, with `token_address` empty for the native asset. Each balance source reads its own rows from it, and `evm-erc20-metadata` and `solana-spl-metadata` read the decimals of each token in it. Other sources take their addresses from their `addresses.json`; a source that covers several chains keeps one per chain under `chains/<chain>/`.
-3. Materialize a pipeline (balances, transfers, dex or labels) on a schedule you choose.
+2. List the wallets and tokens whose balances you want in `ingestion/wallet-assets.csv`, one `blockchain,wallet_address,token_address` row each, with `token_address` empty for the native asset. Each balance source reads its own rows from it, and `evm-erc20-metadata` and `solana-spl-metadata` read the decimals of each token in it.
+3. Materialize the balances pipeline on a schedule you choose.
 4. Ask the business question in Claude Code. You get an answer folder with its checks, and a report if you want one.
 5. When the brief changes, add a source, a chain or [your own pipeline](#add-your-own-pipeline). The [skill](#claude-code-skill) can walk you through any of these.
 

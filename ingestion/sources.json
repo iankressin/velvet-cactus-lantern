@@ -1,83 +1,8 @@
 [
   {
-    "name": "arbitrum",
-    "table": "address_code",
-    "package": "evm-address-code",
-    "settings": "chains/arbitrum"
-  },
-  {
-    "name": "arbitrum",
-    "table": "chainlink_price_feeds",
-    "package": "evm-chainlink-price-feeds",
-    "settings": "chains/arbitrum"
-  },
-  {
-    "name": "arbitrum",
-    "table": "erc20_metadata",
-    "package": "evm-erc20-metadata",
-    "settings": "chains/arbitrum"
-  },
-  {
-    "name": "arbitrum",
-    "table": "erc20_transfers",
-    "package": "evm-erc20-transfers",
-    "settings": "chains/arbitrum"
-  },
-  {
-    "name": "arbitrum",
-    "table": "token_bridge",
-    "package": "arbitrum-token-bridge"
-  },
-  {
-    "name": "base",
-    "table": "address_code",
-    "package": "evm-address-code",
-    "settings": "chains/base"
-  },
-  {
-    "name": "base",
-    "table": "chainlink_price_feeds",
-    "package": "evm-chainlink-price-feeds",
-    "settings": "chains/base"
-  },
-  {
-    "name": "base",
-    "table": "erc20_metadata",
-    "package": "evm-erc20-metadata",
-    "settings": "chains/base"
-  },
-  {
-    "name": "base",
-    "table": "erc20_transfers",
-    "package": "evm-erc20-transfers",
-    "settings": "chains/base"
-  },
-  {
-    "name": "base",
-    "table": "op_standard_bridge",
-    "package": "evm-op-standard-bridge",
-    "settings": "chains/base"
-  },
-  {
-    "name": "binance",
-    "table": "candles",
-    "package": "binance-candles"
-  },
-  {
     "name": "bitcoin",
     "table": "btc_balances",
     "package": "bitcoin-btc-balances"
-  },
-  {
-    "name": "coinbase",
-    "table": "candles",
-    "package": "coinbase-candles"
-  },
-  {
-    "name": "ethereum",
-    "table": "chainlink_price_feeds",
-    "package": "evm-chainlink-price-feeds",
-    "settings": "chains/ethereum"
   },
   {
     "name": "ethereum",
@@ -93,32 +18,8 @@
   },
   {
     "name": "ethereum",
-    "table": "erc20_transfers",
-    "package": "evm-erc20-transfers",
-    "settings": "chains/ethereum"
-  },
-  {
-    "name": "ethereum",
     "table": "eth_balances",
     "package": "evm-eth-balances",
-    "settings": "chains/ethereum"
-  },
-  {
-    "name": "ethereum",
-    "table": "uniswap_v2",
-    "package": "evm-uniswap-v2",
-    "settings": "chains/ethereum"
-  },
-  {
-    "name": "ethereum",
-    "table": "uniswap_v3",
-    "package": "evm-uniswap-v3",
-    "settings": "chains/ethereum"
-  },
-  {
-    "name": "ethereum",
-    "table": "uniswap_v4",
-    "package": "evm-uniswap-v4",
     "settings": "chains/ethereum"
   },
   {
