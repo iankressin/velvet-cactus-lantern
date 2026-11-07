@@ -36,6 +36,9 @@ importers:
       '@subsquid/pipes':
         specifier: 1.0.0-beta.11
         version: 1.0.0-beta.11(@opentelemetry/api@1.10.0)(@subsquid/logger@1.6.0)(better-sqlite3@12.4.5)(drizzle-orm@0.44.7(@electric-sql/pglite@0.5.13)(@opentelemetry/api@1.10.0)(@types/pg@8.23.1)(better-sqlite3@12.4.5)(pg@8.23.1))(pg@8.23.1)
+      csv-parse:
+        specifier: ^7.0.3
+        version: 7.0.3
       dotenv:
         specifier: ^18.0.9
         version: 18.0.9
@@ -1111,6 +1114,9 @@ packages:
   cookie@0.7.2:
     resolution: {integrity: sha512-yki5XnKuf750l50uGTllt6kKILY4nQ1eNIQatoXEByZ5dWgnKqbnqmTrBE5B4N7lrMJKQ2ytWMiTO2o0v6Ew/w==}
     engines: {node: '>= 0.6'}
+
+  csv-parse@7.0.3:
+    resolution: {integrity: sha512-YFd3QM/yo17vH91L1IOZuvl09zM0zEEtdfTcOCKWcMdM++MNaQSyp09slXyFCLaPXvHstQFx/xC8myiFHSMUvw==}
 
   d@1.0.2:
     resolution: {integrity: sha512-MOqHvMWF9/9MX6nza0KgvFH4HpMU0EF5uUDXqX/BtxtU8NfB0QzRtJ8Oe/6SuS4kbhyzVJwjd97EA4PKrzJ8bw==}
@@ -2766,6 +2772,8 @@ snapshots:
   cookie-signature@1.2.2: {}
 
   cookie@0.7.2: {}
+
+  csv-parse@7.0.3: {}
 
   d@1.0.2:
     dependencies:
