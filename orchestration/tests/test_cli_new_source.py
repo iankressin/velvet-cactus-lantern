@@ -187,12 +187,12 @@ def copy_package(repo, package):
 
 
 def test_copies_a_package_that_loads_several_chains_with_only_the_new_chain(repo, pnpm, capsys):
-    template = copy_package(repo, "evm-eth-balances")
-    shutil.copytree(template / "chains/ethereum", template / "chains/base")
+    # evm-erc20-metadata loads arbitrum, base and ethereum, each with an addresses.json.
+    template = copy_package(repo, "evm-erc20-metadata")
     (template / "chains/ethereum/.env").write_text("EVM_RPC_URL=http://secret\n")
     (template / "chains/ethereum/factory.sqlite").write_bytes(b"pools of another source")
 
-    assert run(repo, "ethereum", "erc721_holdings", "evm-eth-balances") == 0
+    assert run(repo, "ethereum", "erc721_holdings", "evm-erc20-metadata") == 0
 
     package = repo / "ingestion/sources/evm-erc721-holdings"
     assert [p.name for p in (package / "chains").iterdir()] == ["ethereum"]
@@ -201,7 +201,7 @@ def test_copies_a_package_that_loads_several_chains_with_only_the_new_chain(repo
     assert not (package / "node_modules").exists()
     assert json.loads((package / "package.json").read_text())["name"] == "@ingestion/evm-erc721-holdings"
     source_ts = (package / "src/source.ts").read_text()
-    assert 'table: "erc721_holdings"' in source_ts and 'table: "eth_balances"' not in source_ts
+    assert 'table: "erc721_holdings"' in source_ts and 'table: "erc20_metadata"' not in source_ts
     entries = read_sources((repo / SOURCES_FILE).read_text())
     assert [(e.name, e.package, e.settings) for e in entries if e.table == "erc721_holdings"] == [
         ("ethereum", "evm-erc721-holdings", "chains/ethereum")
@@ -213,18 +213,19 @@ def test_copies_a_package_that_loads_several_chains_with_only_the_new_chain(repo
 
 
 def test_a_chain_the_template_lacks_starts_as_a_copy_of_another(repo, pnpm, capsys):
-    template = copy_package(repo, "evm-eth-balances")
+    template = copy_package(repo, "evm-erc20-metadata")
 
-    assert run(repo, "polygon", "erc721_holdings", "evm-eth-balances") == 0
+    assert run(repo, "polygon", "erc721_holdings", "evm-erc20-metadata") == 0
 
+    # The template's first chain in sources.json is arbitrum.
     chain = repo / "ingestion/sources/evm-erc721-holdings/chains/polygon"
     for name in (".env.example", "addresses.json"):
-        assert (chain / name).read_text() == (template / "chains/ethereum" / name).read_text()
+        assert (chain / name).read_text() == (template / "chains/arbitrum" / name).read_text()
     assert ("polygon", "erc721_holdings") in sources_of(repo)
     out = capsys.readouterr().out
     assert (
         "created ingestion/sources/evm-erc721-holdings/chains/polygon/ "
-        "(a copy of ingestion/sources/evm-eth-balances/chains/ethereum/)"
+        "(a copy of ingestion/sources/evm-erc20-metadata/chains/arbitrum/)"
     ) in out
     assert "Set ingestion/sources/evm-erc721-holdings/chains/polygon/.env.example for polygon" in out
 
