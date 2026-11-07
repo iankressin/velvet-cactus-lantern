@@ -94,6 +94,11 @@ def env_overrides(config: Mapping[str, Any]) -> dict[str, str]:
     return overrides
 
 
+def check_env(run_config: Mapping[str, Any], source: str, table: str) -> dict[str, str]:
+    op_config = run_config.get("ops", {}).get(f"{source}__{table}", {}).get("config", {})
+    return {**os.environ, **env_overrides(op_config)}
+
+
 PINO_LEVELS = {
     10: logging.DEBUG,
     20: logging.DEBUG,
@@ -177,8 +182,10 @@ def build_dead_letter_check(source: str, table: str) -> dg.AssetChecksDefinition
         name="no_dead_letters",
         description="Calls that failed and wait in the raw schema's _dead_letters table. Warns, never blocks.",
     )
-    def _check() -> dg.AssetCheckResult:
-        pending, parked = count_dead_letters(f"{source}_{table}")
+    def _check(context: dg.AssetCheckExecutionContext) -> dg.AssetCheckResult:
+        pending, parked = count_dead_letters(
+            f"{source}_{table}", check_env(context.run.run_config, source, table)
+        )
         return dg.AssetCheckResult(
             passed=pending + parked == 0,
             severity=dg.AssetCheckSeverity.WARN,

@@ -8,7 +8,7 @@ from dagster._core.snap.snap_to_yaml import default_values_yaml_from_type_snap
 from dotenv import dotenv_values
 
 from pipeline.assets import ingestion
-from pipeline.assets.ingestion import ENTRIES, ingestion_assets
+from pipeline.assets.ingestion import ENTRIES, check_env, ingestion_assets
 from pipeline.definitions import defs
 from pipeline.project import INGESTION_DIR, REPO_ROOT
 
@@ -121,3 +121,20 @@ def test_a_mapping_value_fails_the_run_and_names_its_key(pnpm_calls):
     with pytest.raises(dg.Failure, match="LOG_LEVEL"):
         dg.materialize([asset_def(ETH_BALANCES)], run_config=run_config)
     assert pnpm_calls == []
+
+
+def test_dead_letter_check_uses_warehouse_and_schema_overrides(monkeypatch):
+    monkeypatch.setenv("WAREHOUSE_DB", "warehouse")
+    monkeypatch.setenv("RAW_SCHEMA", "raw")
+    run_config = {
+        "ops": {
+            "ethereum__eth_balances": {
+                "config": {"WAREHOUSE_DB": "scratch", "RAW_SCHEMA": "staging"},
+            },
+        },
+    }
+
+    env = check_env(run_config, "ethereum", "eth_balances")
+
+    assert env["WAREHOUSE_DB"] == "scratch"
+    assert env["RAW_SCHEMA"] == "staging"
