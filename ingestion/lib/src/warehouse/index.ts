@@ -103,6 +103,11 @@ export function postgresWarehouse(settings?: WarehouseSettings) {
       const deadLetters = `${raw}."_dead_letters"`;
       const db = await connect();
       try {
+        // Sources that start together on an empty warehouse all create the schema and the shared
+        // dead-letter table at once, and Postgres fails every `if not exists` but the first. The
+        // lock makes them take turns. It ends with the transaction.
+        await db.query("begin");
+        await db.query("select pg_advisory_xact_lock(hashtext($1))", [schema]);
         await db.query(`create schema if not exists ${raw}`);
         await db.query(
           `create table if not exists ${table} (
@@ -124,7 +129,9 @@ export function postgresWarehouse(settings?: WarehouseSettings) {
              primary key (source_table, id)
            )`,
         );
+        await db.query("commit");
       } catch (error) {
+        await db.query("rollback").catch(() => {});
         await db.close();
         throw error;
       }
