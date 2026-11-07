@@ -47,3 +47,28 @@ def test_failed_run_exits_1_naming_the_failed_step(stubbed, capsys):
     out = capsys.readouterr().out
     assert "step transformed failed: RuntimeError: relation raw.ethereum_eth_balances does not exist" in out
     assert "step loaded" not in out
+
+
+def test_wallet_assets_sends_every_source_the_absolute_csv_path(stubbed, monkeypatch, tmp_path):
+    (tmp_path / "wallets.csv").write_text("blockchain,wallet_address,token_address\n")
+    monkeypatch.chdir(tmp_path)
+    configs = []
+    monkeypatch.setattr(run_command, "materialize", lambda defs, pipelines, name, run_config: configs.append(run_config) or 0)
+    assert main(["run", "balances", "--wallet-assets", "wallets.csv"]) == 0
+    path = str((tmp_path / "wallets.csv").resolve())
+    assert configs == [{"resources": {"ingestion_env": {"config": {"WALLET_ASSETS_CSV": path}}}}]
+
+
+def test_a_missing_wallet_csv_exits_2_before_parsing(stubbed, monkeypatch, tmp_path, capsys):
+    monkeypatch.chdir(tmp_path)
+    assert main(["run", "balances", "--wallet-assets", "missing.csv"]) == 2
+    assert "no wallet asset CSV at" in capsys.readouterr().err
+    assert stubbed == []
+
+
+def test_wallet_assets_config_is_valid_for_the_real_balances_job(tmp_path):
+    from pipeline.definitions import defs
+
+    (tmp_path / "wallets.csv").write_text("blockchain,wallet_address,token_address\n")
+    config = run_command.wallet_assets_config(str(tmp_path / "wallets.csv"))
+    assert dg.validate_run_config(defs.resolve_job_def("balances"), config)
