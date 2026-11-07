@@ -30,6 +30,10 @@ _Avoid_: chunk, page
 One execution of one source, from picking up its retries to recording its outcome.
 _Avoid_: job, execution
 
+**Wallet asset**:
+One wallet and one asset on one chain whose balance a run reads, such as a wallet's USDC on Ethereum. Its asset type is native, or the chain's token standard (erc20, spl). A wallet asset CSV lists one per row, and each balance source reads the rows of its own chain and asset type.
+_Avoid_: holding, position, pair
+
 ### Warehouse
 
 **Warehouse**:

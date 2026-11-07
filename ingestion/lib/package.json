@@ -6,7 +6,8 @@
     ".": "./src/index.ts",
     "./evm": "./src/evm/index.ts",
     "./solana": "./src/solana/index.ts",
-    "./bitcoin": "./src/bitcoin/index.ts"
+    "./bitcoin": "./src/bitcoin/index.ts",
+    "./wallet-assets": "./src/wallet-assets/index.ts"
   },
   "imports": {
     "#src/*": "./src/*"
