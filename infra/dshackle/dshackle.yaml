@@ -1,0 +1,95 @@
+# Dshackle proxy over free public Bitcoin mainnet RPCs.
+# Endpoint for clients: http://localhost:8545/bitcoin
+# Health: http://localhost:8082/health (add ?detailed for each upstream's state)
+# Docs: https://github.com/emeraldpay/dshackle/tree/v0.18.0/docs
+
+version: v1
+
+proxy:
+  host: 0.0.0.0
+  port: 8545
+  routes:
+    - id: bitcoin
+      blockchain: bitcoin
+
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true
+    bind: 0.0.0.0
+    port: 8081
+    path: /metrics
+
+health:
+  host: 0.0.0.0
+  port: 8082
+  path: /health
+  blockchains:
+    - blockchain: bitcoin
+      min-available: 1
+
+cluster:
+  # Every 15s dshackle reads each upstream's tip (getbestblockhash, then getblock).
+  # Every 30s it also calls getconnectioncount and drops the upstream until the
+  # next check if that call fails; upstreams that refuse the call skip the check.
+  # An upstream that answers 429 is paused and the call goes to the next one.
+  #
+  # Endpoints checked 2026-11-04 with getblockcount at a steady rate for 20-30s.
+  # All of them keep the full chain and a transaction index.
+  # Dropped after testing: Tatum (5 calls a minute, less than the tip polling
+  # needs); bitcoin.publicnode.com (same servers as bitcoin-rpc.publicnode.com);
+  # drpc, 1rpc, ankr, blockpi, chainstack, dwellir, getblock, nownodes' keyed
+  # host (need a key or a paid plan); blastapi, lava, omnia (shut down).
+  upstreams:
+    # 10 calls a second with no refusals, about 210ms each.
+    - id: btc-publicnode
+      blockchain: bitcoin
+      methods: &btc-extra-methods
+        enabled:
+          - name: getblockchaininfo
+          - name: getblockheader
+          - name: estimatesmartfee
+      connection:
+        bitcoin:
+          rpc:
+            url: https://bitcoin-rpc.publicnode.com
+    # 10 calls a second with no refusals, about 325ms each.
+    - id: btc-nownodes
+      blockchain: bitcoin
+      methods: *btc-extra-methods
+      connection:
+        bitcoin:
+          rpc:
+            url: https://public-btc.nownodes.io
+    # About 5 calls a second before 429s, and about 1.5s a call, so it serves
+    # only when both primaries fail. It also refuses getconnectioncount.
+    - id: btc-zan
+      blockchain: bitcoin
+      role: secondary
+      validate-peers: false
+      methods: *btc-extra-methods
+      connection:
+        bitcoin:
+          rpc:
+            url: https://api.zan.top/btc-mainnet
+    # About 1 call every 3s before 429s. Last resort; the peer check is off so
+    # it doesn't spend that budget.
+    #
+    # The only keyless upstream found that serves scantxoutset, so Dshackle
+    # sends that method here alone (checked 2026-11-04: ZAN answers -32601
+    # invalid method, publicnode "broker: node error", nownodes an empty reply).
+    # A scan took 43s to 96s, and bitcoin-btc-balances makes one per run, well
+    # within the budget above. The default 60s timeout cut scans short, so this
+    # one waits 240s, under the source's own 5 minutes.
+    - id: btc-onfinality
+      blockchain: bitcoin
+      role: fallback
+      validate-peers: false
+      timeout: 240
+      methods:
+        enabled:
+          - name: scantxoutset
+      connection:
+        bitcoin:
+          rpc:
+            url: https://bitcoin.api.onfinality.io/public

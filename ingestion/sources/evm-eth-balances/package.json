@@ -1,0 +1,17 @@
+{
+  "name": "@ingestion/evm-eth-balances",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#src/*": "./src/*"
+  },
+  "scripts": {
+    "ingest": "tsx src/index.ts",
+    "test": "tsx --test src/*.test.ts"
+  },
+  "dependencies": {
+    "@ingestion/lib": "workspace:*",
+    "viem": "^2.57.16",
+    "zod": "^4.6.7"
+  }
+}

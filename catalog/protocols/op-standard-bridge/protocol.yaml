@@ -1,0 +1,122 @@
+name: op-standard-bridge
+scope: >-
+  The Base side of the OP Stack standard bridge to Ethereum, for any ERC-20 token: the L2 events
+  that say a withdrawal to Ethereum started and a deposit from Ethereum finished. Only Base is
+  covered. The Ethereum side is listed under ethereum_counterparts only to read the L2 events;
+  no source loads it.
+docs:
+  - https://specs.optimism.io/protocol/predeploys.html
+  - https://docs.base.org/base-chain/network-information/base-contracts
+  - https://docs.optimism.io/app-developers/guides/bridging/standard-bridge
+  - https://docs.base.org/base-chain/network-information/bridging-and-withdrawals
+  - https://docs.base.org/base-chain/network-information/transaction-finality
+  - https://registry.npmjs.org/@eth-optimism/contracts-bedrock/-/contracts-bedrock-0.17.3.tgz
+chains:
+  base:
+    portal_dataset: base-mainnet
+    contracts:
+      l2_standard_bridge:
+        address: "0x4200000000000000000000000000000000000010"
+        deployed_block: 0
+        role: >-
+          Burns the Base token and emits ERC20BridgeInitiated (plus the legacy
+          WithdrawalInitiated) when a withdrawal starts. Mints the Base token and emits
+          ERC20BridgeFinalized (plus the legacy DepositFinalized) when a deposit arrives. A Base
+          token that is not an OptimismMintableERC20 is held and released instead of burned and
+          minted.
+        source: >-
+          "L2StandardBridge" on the Base contracts page and in the predeploy table of the OP
+          specs. Genesis predeploy: the specs say predeploys "exist ... at predetermined
+          addresses in the genesis state", so there is no deploy transaction.
+      l2_cross_domain_messenger:
+        address: "0x4200000000000000000000000000000000000007"
+        deployed_block: 0
+        role: >-
+          Delivers deposit messages to the bridge (relayMessage, event RelayedMessage) and sends
+          withdrawal messages to L2ToL1MessagePasser.
+        source: >-
+          "L2CrossDomainMessenger" on the Base contracts page and in the OP specs predeploy
+          table. Genesis predeploy.
+      l2_to_l1_message_passer:
+        address: "0x4200000000000000000000000000000000000016"
+        deployed_block: 0
+        role: >-
+          Stores each withdrawal's hash and emits MessagePassed, which Ethereum later proves
+          against.
+        source: >-
+          "L2ToL1MessagePasser" on the Base contracts page and in the OP specs predeploy table.
+          Genesis predeploy.
+ethereum_counterparts:
+  l1_standard_bridge:
+    address: "0x3154Cf16ccdb4C6d922629664174b904d80F2C35"
+    source: >-
+      "L1StandardBridge" for Base Mainnet on the Base contracts page. It holds the Ethereum
+      tokens deposited to Base. It is the _sender of every deposit's relayMessage call on Base.
+  l1_cross_domain_messenger:
+    address: "0x866E82a600A1414e583f7F13623F1aC5d58b0Afa"
+    source: >-
+      "L1CrossDomainMessenger" for Base Mainnet on the Base contracts page. Its aliased address
+      0x977F82a600a1414E583f7F13623F1ac5D58B1C0b is tx.from of a deposit transaction on Base,
+      unless the message failed and someone replayed it.
+  optimism_portal:
+    address: "0x49048044D57e1C92A77f79988d21Fa8fAF74E97e"
+    source: '"OptimismPortal" for Base Mainnet on the Base contracts page.'
+events:
+  ERC20BridgeInitiated:
+    use: source
+    emitted_by: l2_standard_bridge
+    signature: "event ERC20BridgeInitiated(address indexed localToken, address indexed remoteToken, address indexed from, address to, uint256 amount, bytes extraData)"
+    topic0: "0x7ff126db8024424bbfd9826e8ab82ff59136289ea440b04b39a0df1b03b9cabf"
+    abi: abis/l2-standard-bridge.json
+    fields:
+      l2_token: {param: localToken, at: topic1}
+      l1_token: {param: remoteToken, at: topic2}
+      l2_user: {param: from, at: topic3}
+      l1_counterpart: {param: to, at: data word 0, indexed: false}
+      amount: {param: amount, at: data word 1}
+    token_filter: >-
+      topic1 = the Base token's address padded to 32 bytes. When the Base token is an
+      OptimismMintableERC20, the bridge requires remoteToken to be that token's remote token, so
+      topic2 adds nothing. Never filter on topic2 alone: other Base tokens can name the same
+      Ethereum token as their remote token.
+  ERC20BridgeFinalized:
+    use: source
+    emitted_by: l2_standard_bridge
+    signature: "event ERC20BridgeFinalized(address indexed localToken, address indexed remoteToken, address indexed from, address to, uint256 amount, bytes extraData)"
+    topic0: "0xd59c65b35445225835c83f50b6ede06a7be047d22e357073e250d9af537518cd"
+    abi: abis/l2-standard-bridge.json
+    fields:
+      l2_token: {param: localToken, at: topic1}
+      l1_token: {param: remoteToken, at: topic2}
+      l1_counterpart: {param: from, at: topic3}
+      l2_user: {param: to, at: data word 0, indexed: false}
+      amount: {param: amount, at: data word 1}
+    token_filter: >-
+      topic1 = the Base token's address padded to 32 bytes. When the Base token is an
+      OptimismMintableERC20, the bridge requires remoteToken to be that token's remote token, so
+      topic2 adds nothing. Never filter on topic2 alone: other Base tokens can name the same
+      Ethereum token as their remote token.
+  WithdrawalInitiated:
+    use: legacy twin of ERC20BridgeInitiated, do not load both
+    emitted_by: l2_standard_bridge
+    signature: "event WithdrawalInitiated(address indexed l1Token, address indexed l2Token, address indexed from, address to, uint256 amount, bytes extraData)"
+    topic0: "0x73d170910aba9e6d50b102db522b1dbcd796216f5128b445aa2135272886497e"
+    abi: abis/l2-standard-bridge.json
+  DepositFinalized:
+    use: legacy twin of ERC20BridgeFinalized, do not load both
+    emitted_by: l2_standard_bridge
+    signature: "event DepositFinalized(address indexed l1Token, address indexed l2Token, address indexed from, address to, uint256 amount, bytes extraData)"
+    topic0: "0xb0444523268717a02698be47d0803aa7468c00acbed2f8bd93a0459cde61dd89"
+    abi: abis/l2-standard-bridge.json
+  RelayedMessage:
+    use: proof only
+    emitted_by: l2_cross_domain_messenger
+    signature: "event RelayedMessage(bytes32 indexed msgHash)"
+    topic0: "0x4641df4a962071e12719d8c8c8e5ac7fc4d97b927346a3d7a335b1f7517e133c"
+    abi: abis/l2-cross-domain-messenger.json
+  MessagePassed:
+    use: proof only
+    emitted_by: l2_to_l1_message_passer
+    signature: "event MessagePassed(uint256 indexed nonce, address indexed sender, address indexed target, uint256 value, uint256 gasLimit, bytes data, bytes32 withdrawalHash)"
+    topic0: "0x02a52367d10742d8032712c1bb8e0144ff1ec5ffda1ed7d70bb05a2744955054"
+    abi: abis/l2-to-l1-message-passer.json

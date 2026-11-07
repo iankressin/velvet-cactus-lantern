@@ -1,0 +1,267 @@
+# eRPC proxy over free public Ethereum mainnet, Arbitrum One, Base and Solana RPCs.
+# Endpoints for clients: http://localhost:4000/main/evm/<chainId>, such as evm/1 (alias: /main/ethereum).
+# Docs: https://docs.erpc.cloud
+
+logLevel: warn
+
+server:
+  httpHostV4: 0.0.0.0
+  httpPortV4: 4000
+  maxTimeout: 60s
+
+metrics:
+  enabled: true
+  port: 4001
+
+database:
+  evmJsonRpcCache:
+    connectors:
+      - id: memory-cache
+        driver: memory
+      # Database "erpc" in the warehouse Postgres; erpc-db-init creates it.
+      - id: postgres-cache
+        driver: postgresql
+        postgresql:
+          connectionUri: ${ERPC_CACHE_DATABASE_URL}
+    # Memory is checked first. Finalized data never changes, so it also goes to
+    # Postgres with no expiry and survives restarts. Recent data stays in memory only.
+    policies:
+      - network: "*"
+        method: "*"
+        finality: finalized
+        connector: memory-cache
+      - network: "*"
+        method: "*"
+        finality: finalized
+        connector: postgres-cache
+      - network: "*"
+        method: "*"
+        finality: unfinalized
+        connector: memory-cache
+        ttl: 5s
+
+  # Solana has its own cache section. Only getBlock/getTransaction sent with
+  # commitment "finalized" in the request are cached for good; account reads (getBalance etc.)
+  # track the chain head, so they get a short TTL in memory only.
+  svmJsonRpcCache:
+    connectors:
+      - id: memory-cache
+        driver: memory
+      - id: postgres-cache
+        driver: postgresql
+        postgresql:
+          connectionUri: ${ERPC_CACHE_DATABASE_URL}
+    policies:
+      - network: "*"
+        method: "*"
+        finality: finalized
+        connector: memory-cache
+      - network: "*"
+        method: "*"
+        finality: finalized
+        connector: postgres-cache
+      - network: "*"
+        method: "*"
+        finality: unfinalized
+        connector: memory-cache
+        ttl: 800ms
+      - network: "*"
+        method: "*"
+        finality: realtime
+        connector: memory-cache
+        ttl: 2s
+
+# Free Solana endpoints have tight per-IP limits; the Foundation documents
+# 100 requests per 10s per IP. These budgets keep eRPC under them. Auto-tuning
+# is off on each upstream so the limits stay where they are set.
+# eRPC counts each method on its own, so a "*" rule caps every method separately.
+# Once a budget refuses a request, eRPC skips that upstream for the rest of the
+# request; its retries and hedges then find no upstream and fail after about 15s.
+rateLimiters:
+  budgets:
+    # Shared: both Foundation hostnames draw on one per-IP limit. Their
+    # rate-limit headers count down together.
+    - id: sol-foundation
+      rules:
+        # The Foundation also caps each method: its headers report 6 getBlock
+        # calls per 10s. Kept just under that.
+        - method: getBlock
+          maxCount: 30
+          period: minute
+        # Its headers report 10 getTokenAccountsByOwner calls per 10s. A minute
+        # window lets a whole SPL run (9 calls in about 1s) through; 6 per second
+        # refused the last calls of each run.
+        - method: getTokenAccountsByOwner
+          maxCount: 10
+          period: minute
+        - method: "!getTokenAccountsByOwner"
+          maxCount: 6
+          period: second
+    # Measured: 1 request per second holds; 2 per second fails every other call.
+    - id: sol-vibestation
+      rules:
+        - method: "*"
+          maxCount: 1
+          period: second
+
+projects:
+  - id: main
+    networks:
+      - architecture: evm
+        alias: ethereum
+        evm:
+          chainId: 1
+      - architecture: evm
+        alias: arbitrum
+        evm:
+          chainId: 42161
+      - architecture: evm
+        alias: base
+        evm:
+          chainId: 8453
+      - architecture: svm
+        alias: solana
+        svm:
+          cluster: mainnet-beta
+          # eRPC sends 4 health calls per upstream each poll. The default
+          # (every 400ms) alone uses up the free tiers' per-IP limits.
+          statePollerDebounce: 10s
+
+    networkDefaults:
+      failsafe:
+        - matchMethod: "*"
+          timeout:
+            duration: 30s
+          retry:
+            maxAttempts: 5
+            delay: 300ms
+            backoffMaxDelay: 5s
+            backoffFactor: 2
+            jitter: 200ms
+          hedge:
+            delay: 2s
+            maxCount: 1
+
+    upstreamDefaults:
+      # Public RPCs differ in what they serve; skip methods an upstream rejects.
+      autoIgnoreUnsupportedMethods: true
+      failsafe:
+        - matchMethod: "*"
+          timeout:
+            duration: 15s
+          retry:
+            maxAttempts: 2
+            delay: 500ms
+
+    # Endpoints checked 2026-11-04. Dropped after testing: llamarpc, merkle,
+    # cloudflare, ankr (down or need a key); 1rpc and Tatum (keyless quota
+    # ran out within minutes); drpc, blockpi, helius for Solana (paid only).
+    # Solana also: leorpc and ZAN (fail most calls), OnFinality (429 on the
+    # first call), Pocket (some of its nodes lack the token account index),
+    # Lava, NodeFlare, Omnia, extrnode, MagicBlock, Solana Tracker (gone or
+    # need a key).
+    # "archive" ones served old blocks (block 1
+    # on Ethereum, slot 200000000 on Solana); "pruned" ones keep recent history only.
+    upstreams:
+      # ── Ethereum mainnet ──────────────────────────────────────────────
+      - id: eth-drpc
+        type: evm
+        endpoint: https://eth.drpc.org
+        tags: [archive]
+        evm: &eth
+          chainId: 1
+      - id: eth-mevblocker
+        type: evm
+        endpoint: https://rpc.mevblocker.io
+        tags: [archive]
+        evm: *eth
+      - id: eth-blastapi
+        type: evm
+        endpoint: https://eth-mainnet.public.blastapi.io
+        tags: [archive]
+        evm: *eth
+      - id: eth-blockpi
+        type: evm
+        endpoint: https://ethereum.public.blockpi.network/v1/rpc/public
+        tags: [archive]
+        evm: *eth
+      # eRPC probes each pruned node for its earliest block and sends it
+      # only requests at or above that block.
+      - id: eth-publicnode
+        type: evm
+        endpoint: https://ethereum-rpc.publicnode.com
+        tags: [pruned]
+        evm: &eth-pruned
+          chainId: 1
+          blockAvailability:
+            lower:
+              earliestBlockPlus: 0
+              probe: blockHeader
+              updateRate: 1h
+      - id: eth-flashbots
+        type: evm
+        endpoint: https://rpc.flashbots.net
+        tags: [pruned]
+        evm: *eth-pruned
+      - id: eth-blockrazor
+        type: evm
+        endpoint: https://eth.blockrazor.xyz
+        tags: [pruned]
+        evm: *eth-pruned
+
+      # ── Arbitrum One and Base ─────────────────────────────────────────
+      # The chains' own public RPCs, added 2026-11-05 for reading code at the latest block. Both keep
+      # recent state only, so a read at an old block needs an archive upstream.
+      - id: arbitrum-public
+        type: evm
+        endpoint: https://arb1.arbitrum.io/rpc
+        tags: [pruned]
+        evm:
+          chainId: 42161
+      - id: base-public
+        type: evm
+        endpoint: https://mainnet.base.org
+        tags: [pruned]
+        evm:
+          chainId: 8453
+
+      # ── Solana mainnet-beta ───────────────────────────────────────────
+      - id: sol-foundation
+        type: svm
+        rateLimitBudget: sol-foundation
+        rateLimitAutoTune:
+          enabled: false
+        endpoint: https://api.mainnet-beta.solana.com
+        tags: [archive]
+        svm: &sol
+          cluster: mainnet-beta
+      - id: sol-foundation-alt
+        type: svm
+        rateLimitBudget: sol-foundation
+        rateLimitAutoTune:
+          enabled: false
+        endpoint: https://api.mainnet.solana.com
+        tags: [archive]
+        svm: *sol
+      - id: sol-publicnode
+        type: svm
+        endpoint: https://solana-rpc.publicnode.com
+        tags: [pruned]
+        # Refused without a paid token, using an error code eRPC reads as a
+        # bad request, so it would not try another upstream.
+        ignoreMethods:
+          - getTokenSupply
+          - getTokenLargestAccounts
+          - getProgramAccounts
+          - getTokenAccountsByOwner
+        svm: *sol
+      # With the Foundation, the only keyless endpoint found that serves
+      # getTokenAccountsByOwner.
+      - id: sol-vibestation
+        type: svm
+        rateLimitBudget: sol-vibestation
+        rateLimitAutoTune:
+          enabled: false
+        endpoint: https://public.rpc.solanavibestation.com
+        tags: [pruned]
+        svm: *sol

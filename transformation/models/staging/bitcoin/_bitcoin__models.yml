@@ -1,0 +1,13 @@
+version: 2
+
+models:
+  - name: stg_bitcoin__btc_balances
+    columns:
+      - name: id
+        data_tests: [unique, not_null]
+      - name: block_number
+        data_tests: [not_null]
+      - name: wallet
+        data_tests: [not_null]
+      - name: balance
+        data_tests: [not_null]

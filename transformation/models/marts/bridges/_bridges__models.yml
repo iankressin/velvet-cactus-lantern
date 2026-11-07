@@ -1,0 +1,49 @@
+version: 2
+
+models:
+  - name: bridge_transfers
+    data_tests:
+      - unique:
+          arguments:
+            column_name: "chain || ':' || id"
+    columns:
+      - name: direction
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [to_ethereum, from_ethereum]
+      - name: l2_address
+        data_tests: [not_null]
+      - name: ethereum_address
+        data_tests: [not_null]
+      - name: amount
+        data_tests: [not_null]
+  - name: bridge_pairs
+    columns:
+      - name: withdrawal_id
+        data_tests: [not_null]
+      - name: deposit_id
+        data_tests: [not_null]
+
+unit_tests:
+  - name: a_late_deposit_of_the_same_amount_pairs
+    description: >-
+      A pair read on Portal: 716990784284181798845975 base units of the Ethereum token 0x607f451f left
+      Arbitrum through the L2 ERC20 gateway on 2026-09-25 and reached Base on 2026-10-02 through 0x8100, 157
+      hours later. A deposit of another amount, one too soon after its withdrawal, and one on the same chain
+      do not pair.
+    model: bridge_pairs
+    given:
+      - input: ref('bridge_transfers')
+        rows:
+          - {chain: arbitrum, id: "508746303:6", direction: to_ethereum, l2_address: "0x81004f46e7fda526bd49529b544011dad06cfab9", ethereum_address: "0x81004f46e7fda526bd49529b544011dad06cfab9", ethereum_token: "0x607f451f850cb612a07b37b6315be23f55165610", amount: "716990784284181798845975", block_timestamp: "2026-09-25 11:19:50+00"}
+          - {chain: base, id: "52056280:3", direction: from_ethereum, l2_address: "0x81004f46e7fda526bd49529b544011dad06cfab9", ethereum_address: "0x81004f46e7fda526bd49529b544011dad06cfab9", ethereum_token: "0x607f451f850cb612a07b37b6315be23f55165610", amount: "716990784284181798845975", block_timestamp: "2026-10-02 00:45:07+00"}
+          - {chain: base, id: "2:1", direction: from_ethereum, l2_address: "0xaa", ethereum_address: "0x81004f46e7fda526bd49529b544011dad06cfab9", ethereum_token: "0x607f451f850cb612a07b37b6315be23f55165610", amount: 5, block_timestamp: "2026-10-20 00:00:00+00"}
+          - {chain: arbitrum, id: "3:1", direction: to_ethereum, l2_address: "0xbb", ethereum_address: "0xcc", ethereum_token: "0x607f451f850cb612a07b37b6315be23f55165610", amount: 7, block_timestamp: "2026-10-10 00:00:00+00"}
+          - {chain: base, id: "4:1", direction: from_ethereum, l2_address: "0xdd", ethereum_address: "0xcc", ethereum_token: "0x607f451f850cb612a07b37b6315be23f55165610", amount: 7, block_timestamp: "2026-10-12 00:00:00+00"}
+          - {chain: arbitrum, id: "5:1", direction: to_ethereum, l2_address: "0xee", ethereum_address: "0xff", ethereum_token: "0x607f451f850cb612a07b37b6315be23f55165610", amount: 9, block_timestamp: "2026-10-01 00:00:00+00"}
+          - {chain: arbitrum, id: "6:1", direction: from_ethereum, l2_address: "0xee", ethereum_address: "0xff", ethereum_token: "0x607f451f850cb612a07b37b6315be23f55165610", amount: 9, block_timestamp: "2026-10-20 00:00:00+00"}
+    expect:
+      rows:
+        - {from_chain: arbitrum, from_address: "0x81004f46e7fda526bd49529b544011dad06cfab9", to_chain: base, to_address: "0x81004f46e7fda526bd49529b544011dad06cfab9", withdrawal_id: "508746303:6", deposit_id: "52056280:3", candidates: 1}

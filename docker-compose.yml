@@ -1,0 +1,5 @@
+# Every service lives in infra/docker-compose.yml. Run docker compose from this folder, not from
+# infra/: the project name comes from this folder, and the volumes, the warehouse data among them,
+# are named after the project.
+include:
+  - infra/docker-compose.yml

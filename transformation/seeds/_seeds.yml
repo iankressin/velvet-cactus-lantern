@@ -1,0 +1,116 @@
+version: 2
+
+seeds:
+  - name: cex_addresses
+    description: >-
+      Dune's cex.addresses rows for the addresses that sent or received UNI on Arbitrum or Base in October
+      2026, from meta.dune_query run on 2026-11-05. To follow another token, run the query with its
+      addresses and blocks and add the rows it returns.
+    meta:
+      dune_query: |
+        with movers as (
+            select 'arbitrum' as chain, "from" as address
+            from erc20_arbitrum.evt_Transfer
+            where contract_address = 0xfa7f8980b0f1e64a2062791cc3b0871572f1f7f0
+                and evt_block_date between date '2026-10-01' and date '2026-10-31'
+                and evt_block_number between 510496864 and 520129273
+            union
+            select 'arbitrum', "to"
+            from erc20_arbitrum.evt_Transfer
+            where contract_address = 0xfa7f8980b0f1e64a2062791cc3b0871572f1f7f0
+                and evt_block_date between date '2026-10-01' and date '2026-10-31'
+                and evt_block_number between 510496864 and 520129273
+            union
+            select 'base', "from"
+            from erc20_base.evt_Transfer
+            where contract_address = 0xc3de830ea07524a0761646a6a4e4be0e114a3c83
+                and evt_block_date between date '2026-10-01' and date '2026-10-31'
+                and evt_block_number between 52011727 and 53350926
+            union
+            select 'base', "to"
+            from erc20_base.evt_Transfer
+            where contract_address = 0xc3de830ea07524a0761646a6a4e4be0e114a3c83
+                and evt_block_date between date '2026-10-01' and date '2026-10-31'
+                and evt_block_number between 52011727 and 53350926
+        )
+
+        select
+            c.blockchain as chain,
+            lower(cast(c.address as varchar)) as address,
+            c.cex_name as exchange,
+            c.distinct_name as label
+        from cex.addresses as c
+        join movers as m on m.chain = c.blockchain and m.address = c.address
+        order by 1, 3, 4, 2
+    config:
+      column_types:
+        chain: text
+        address: text
+        exchange: text
+        label: text
+    data_tests:
+      - unique:
+          arguments:
+            column_name: "chain || ':' || address"
+    columns:
+      - name: address
+        data_tests: [not_null]
+      - name: chain
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [arbitrum, base]
+  - name: arbitrum_token_gateways
+    description: >-
+      The rows are the default gateway and the gateways that the L2GatewayRouter, 0x5288c571fd7ad117bea99bf60fe0846c4e84f933, returned from getGateway for UNI,
+      USDC, WETH, DAI, LPT, GRT, wstETH, ARB and USDS on Ethereum, read at Arbitrum block 521602006 on
+      2026-11-05. A token whose gateway is not here needs a row, or its moves leave no trace in the marts;
+      the warn test on stg_arbitrum__token_bridge.contract lists such logs.
+    config:
+      column_types:
+        address: text
+        name: text
+    columns:
+      - name: address
+        data_tests: [unique, not_null]
+  - name: chainlink_feeds
+    description: >-
+      One row per Chainlink aggregator an evm-chainlink-price-feeds source loads, with the feed it serves.
+      feed, decimals and phase_id come from each proxy's description(), decimals() and
+      phaseId()/phaseAggregators(), read on 2026-11-06; heartbeat_seconds from Chainlink's feed directory
+      (feed_directory in catalog/protocols/chainlink/protocol.yaml). Each aggregator in a chain's
+      addresses.json in that source needs a row here, or its rounds leave no trace in the marts; the warn
+      test on each stg_<chain>__chainlink_price_feeds.aggregator lists such logs.
+    config:
+      column_types:
+        chain: text
+        feed: text
+        proxy: text
+        phase_id: integer
+        aggregator: text
+        decimals: integer
+        heartbeat_seconds: integer
+    data_tests:
+      - unique:
+          arguments:
+            column_name: "chain || ':' || aggregator"
+    columns:
+      - name: chain
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [ethereum, arbitrum, base]
+      - name: feed
+        data_tests: [not_null]
+      - name: proxy
+        data_tests: [not_null]
+      - name: phase_id
+        data_tests: [not_null]
+      - name: aggregator
+        data_tests: [not_null]
+      - name: decimals
+        data_tests: [not_null]
+      - name: heartbeat_seconds
+        data_tests: [not_null]

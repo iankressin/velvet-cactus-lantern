@@ -1,0 +1,36 @@
+version: 2
+
+models:
+  - name: tokens
+    description: >-
+      Each token's latest name, symbol and decimals, one row per chain and token in evm-erc20-metadata's
+      addresses.json. Symbols are not unique, even on one chain, so key on chain and token, never on symbol.
+    data_tests:
+      - unique:
+          arguments:
+            column_name: "chain || ':' || token"
+    columns:
+      - name: chain
+        description: Which chain the token lives on.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [ethereum, arbitrum, base]
+      - name: token
+        description: The token's contract address, lowercased.
+        data_tests: [not_null]
+      - name: name
+        description: >-
+          What name() returned, as text. A bytes32 reply is decoded too, without its zero bytes. Null when
+          name() reverted or returned nothing.
+      - name: symbol
+        description: >-
+          What symbol() returned, as text, decoded like name. Null when symbol() reverted or returned
+          nothing. Two tokens can share a symbol.
+      - name: decimals
+        description: >-
+          What decimals() returned. Null means the contract has no decimals(), which ERC-20 allows; never
+          assume 18.
+      - name: block_number
+        description: The block this reading was taken at.

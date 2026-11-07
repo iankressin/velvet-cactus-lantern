@@ -1,0 +1,60 @@
+name: chainlink
+scope: >-
+  Chainlink Data Feeds on EVM chains: the prices an aggregator posts for one feed, each round as it
+  lands on chain. Covers the per-feed proxies and aggregators that report through
+  AggregatorV2V3Interface. Leaves out Data Streams, which post nothing on chain until a user verifies a
+  report, and DataFeedsCache, which serves many feeds from one contract.
+docs:
+  - https://docs.chain.link/data-feeds/price-feeds/addresses
+  - https://docs.chain.link/data-feeds/historical-data
+  - https://docs.chain.link/data-feeds/api-reference
+  - https://reference-data-directory.vercel.app/feeds-mainnet.json
+  - https://reference-data-directory.vercel.app/feeds-ethereum-mainnet-arbitrum-1.json
+  - https://reference-data-directory.vercel.app/feeds-ethereum-mainnet-base-1.json
+  - https://registry.npmjs.org/@chainlink/contracts/-/contracts-1.5.0.tgz
+chains:
+  ethereum:
+    portal_dataset: ethereum-mainnet
+    feed_directory: https://reference-data-directory.vercel.app/feeds-mainnet.json
+  arbitrum:
+    portal_dataset: arbitrum-one
+    feed_directory: https://reference-data-directory.vercel.app/feeds-ethereum-mainnet-arbitrum-1.json
+  base:
+    portal_dataset: base-mainnet
+    feed_directory: https://reference-data-directory.vercel.app/feeds-ethereum-mainnet-base-1.json
+contracts:
+  proxy:
+    role: >-
+      The address a feed is known by and that users read (latestRoundData, getRoundData). It holds no
+      prices and emits no price events. It forwards each read to its current aggregator and remembers
+      every aggregator it has used, one per phase.
+    source: >-
+      proxyAddress in the chain's feed directory. Most feeds keep one proxy for life; the aggregator
+      behind it changes.
+  aggregator:
+    role: >-
+      Receives each round's report from the oracle network, stores the answer and emits AnswerUpdated.
+      One aggregator serves one feed. A feed moves to a new aggregator when Chainlink upgrades it; the
+      proxy's phaseId goes up by one and phaseAggregators(phaseId) names the new one.
+    source: >-
+      contractAddress in the chain's feed directory for the current aggregator. aggregator(),
+      phaseId() and phaseAggregators(n) on the proxy, read over RPC, for every aggregator it has used.
+      NOTES.md says how to find which aggregators cover a window.
+events:
+  AnswerUpdated:
+    use: source
+    emitted_by: aggregator
+    signature: "event AnswerUpdated(int256 indexed current, uint256 indexed roundId, uint256 updatedAt)"
+    topic0: "0x0559884fd3a460db3073b7fc896cc77986f16e378210ded43186175bf646fc5f"
+    abi: abis/aggregator.json
+    abi_source: >-
+      AggregatorInterface in @chainlink/contracts 1.5.0 (src/v0.8/shared/interfaces/AggregatorInterface.sol);
+      the ABI file is the event as abi/v0.8/shared/MockV3Aggregator.abi.json publishes it.
+    fields:
+      answer: {param: current, at: topic1}
+      aggregator_round_id: {param: roundId, at: topic2}
+      updated_at: {param: updatedAt, at: data word 0, indexed: false}
+    feed_filter: >-
+      The log's address = the feed's aggregator. Never filter on topic0 alone: every aggregator of
+      every feed emits it, and so do DataFeedsCache, the L2 sequencer uptime feeds and contracts that
+      copy the interface.

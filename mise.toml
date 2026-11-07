@@ -1,0 +1,4 @@
+# Node 23 is past end of life, and its V8 can deadlock at exit in processes that load PGlite.
+[tools]
+node = "24"
+pnpm = "10.17.0"

@@ -1,0 +1,147 @@
+services:
+  # The Postgres warehouse: raw tables from ingestion, dbt models, the ops run log, and the eRPC cache.
+  warehouse:
+    image: postgres:16
+    # pg_stat_statements and I/O timing feed the query panels on the Pipeline dashboard.
+    command: ["postgres", "-c", "shared_preload_libraries=pg_stat_statements", "-c", "track_io_timing=on"]
+    environment:
+      POSTGRES_USER: ${WAREHOUSE_USER:-elt}
+      POSTGRES_PASSWORD: ${WAREHOUSE_PASSWORD:-elt}
+      POSTGRES_DB: ${WAREHOUSE_DB:-warehouse}
+    ports:
+      - "${WAREHOUSE_PORT:-5432}:5432"
+    volumes:
+      - warehouse-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  # Creates the eRPC cache database, the monitor role and the ops run log in the warehouse.
+  # Safe to rerun.
+  warehouse-init:
+    image: postgres:16
+    environment:
+      PGHOST: warehouse
+      PGUSER: ${WAREHOUSE_USER:-elt}
+      PGPASSWORD: ${WAREHOUSE_PASSWORD:-elt}
+      PGDATABASE: ${WAREHOUSE_DB:-warehouse}
+      MONITOR_PASSWORD: ${MONITOR_PASSWORD:-monitor}
+    volumes:
+      - ./postgres:/sql:ro
+    command:
+      - sh
+      - -c
+      - psql -v ON_ERROR_STOP=1 -v monitor_password="$$MONITOR_PASSWORD" -f /sql/init.sql
+    depends_on:
+      warehouse:
+        condition: service_healthy
+
+  erpc:
+    # grafana/dashboards/erpc.json comes from this release. After changing the tag, refresh it:
+    # curl -fsSo grafana/dashboards/erpc.json https://raw.githubusercontent.com/erpc/erpc/<tag>/monitoring/grafana/dashboards/erpc.json
+    image: ghcr.io/erpc/erpc:0.5.0
+    environment:
+      ERPC_CACHE_DATABASE_URL: postgres://${WAREHOUSE_USER:-elt}:${WAREHOUSE_PASSWORD:-elt}@warehouse:5432/erpc
+    volumes:
+      - ./erpc/erpc.yaml:/erpc.yaml:ro
+    ports:
+      - "${ERPC_PORT:-4000}:4000"
+      - "${ERPC_METRICS_PORT:-4001}:4001"
+    depends_on:
+      warehouse-init:
+        condition: service_completed_successfully
+    # No healthcheck: the image is distroless (gcr.io/distroless/static-debian12 in the release's
+    # Dockerfile) with no shell, curl or wget, and the binary has no probe command, so nothing can
+    # run the check from inside the container. From the host, GET http://localhost:4000/healthcheck
+    # answers 200 OK while an upstream is up and 502 otherwise; prometheus/alerts.yml fires
+    # ScrapeTargetDown when the metrics port stops answering.
+    restart: unless-stopped
+
+  dshackle:
+    # grafana/dashboards/dshackle.json comes from this release, edited to use this Prometheus
+    # datasource and the BTC chain. Its instance list reads a metric that exists before the
+    # first failed request, and its upstream error panels use the metric names of the 0.18
+    # release (_fail_total, not _err_total). After changing the tag, refresh it:
+    # curl -fsS https://raw.githubusercontent.com/emeraldpay/dshackle/<tag>/dashboard/dshackle.json | sed -e 's/lQ3xLXW7k/prometheus/g' -e 's/"ETH"/"BTC"/g' -e 's/dshackle_request_jsonrpc_err_total{},instance/dshackle_upstreams_availability,instance/g' -e 's/_upstream_rpc_err_total/_upstream_rpc_fail_total/g' -e 's/_upstream_ws_err_total/_upstream_ws_fail_total/g' > grafana/dashboards/dshackle.json
+    image: emeraldpay/dshackle:v0.18.0
+    # The image is published for amd64 only; on arm64 hosts Docker runs it under emulation.
+    platform: linux/amd64
+    volumes:
+      - ./dshackle/dshackle.yaml:/etc/dshackle/dshackle.yaml:ro
+    ports:
+      - "${DSHACKLE_PORT:-8545}:8545"
+      - "127.0.0.1:${DSHACKLE_HEALTH_PORT:-8082}:8082"
+    # The release's Dockerfile builds on debian:bookworm-slim, which has bash but no curl or wget,
+    # so bash opens the socket itself. /health answers 200 while at least min-available upstreams
+    # (dshackle.yaml) are up and 503 otherwise. Checked against a local HTTP server, not the image.
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8082 && printf 'GET /health HTTP/1.0\\r\\n\\r\\n' >&3 && head -n 1 <&3 | grep -q ' 200 '"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      # Dshackle polls each upstream's tip before it counts as available.
+      start_period: 60s
+    restart: unless-stopped
+
+  postgres-exporter:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.20.1
+    command: ["--collector.stat_statements", "--collector.long_running_transactions"]
+    environment:
+      DATA_SOURCE_URI: warehouse:5432/${WAREHOUSE_DB:-warehouse}?sslmode=disable
+      DATA_SOURCE_USER: monitor
+      DATA_SOURCE_PASS: ${MONITOR_PASSWORD:-monitor}
+    depends_on:
+      warehouse-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # Ingestion sources run as short jobs that Prometheus cannot scrape. Each run pushes its
+  # results here, and the file keeps them across restarts.
+  pushgateway:
+    image: prom/pushgateway:v1.11.5
+    command: ["--persistence.file=/pushgateway/metrics"]
+    volumes:
+      - pushgateway-data:/pushgateway
+    ports:
+      - "127.0.0.1:${PUSHGATEWAY_PORT:-9091}:9091"
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.15.1
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:13.2.5
+    environment:
+      # Anyone who reaches the port can view dashboards without logging in, so it binds to
+      # 127.0.0.1. Sign in as admin/admin to edit or use Explore.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      WAREHOUSE_DB: ${WAREHOUSE_DB:-warehouse}
+      MONITOR_PASSWORD: ${MONITOR_PASSWORD:-monitor}
+    volumes:
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/dashboards:/etc/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:${GRAFANA_PORT:-3001}:3000"
+    depends_on:
+      prometheus:
+        condition: service_started
+      warehouse-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  warehouse-data:
+  pushgateway-data:
+  prometheus-data:
+  grafana-data:

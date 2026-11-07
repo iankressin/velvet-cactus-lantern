@@ -1,0 +1,17 @@
+version: 2
+
+# Source name + table name must match the ingestion Source's `name` + `table`.
+sources:
+  - name: solana
+    schema: "{{ env_var('RAW_SCHEMA', 'raw') }}"
+    tables:
+      - name: sol_balances
+        identifier: solana_sol_balances
+        columns:
+          - name: id
+            data_tests: [unique, not_null]
+      - name: spl_balances
+        identifier: solana_spl_balances
+        columns:
+          - name: id
+            data_tests: [unique, not_null]

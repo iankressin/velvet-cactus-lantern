@@ -1,0 +1,145 @@
+name: arbitrum-token-bridge
+scope: >-
+  The Arbitrum One side of the canonical token bridge to Ethereum, for any ERC-20 token: the L2
+  events that say a withdrawal to Ethereum started and a deposit from Ethereum finished. The
+  Ethereum side is listed under ethereum_counterparts only to read the L2 events; no source loads
+  it.
+docs:
+  - https://docs.arbitrum.io/build-decentralized-apps/reference/contract-addresses
+  - https://docs.arbitrum.io/build-decentralized-apps/token-bridging/token-bridge-erc20
+  - https://docs.arbitrum.io/arbitrum-essentials/bridging/withdraw/tokens
+  - https://registry.npmjs.org/@arbitrum/token-bridge-contracts/-/token-bridge-contracts-1.2.5.tgz
+  - https://registry.npmjs.org/@arbitrum/nitro-contracts/-/nitro-contracts-1.1.1.tgz
+chains:
+  arbitrum:
+    portal_dataset: arbitrum-one
+    contracts:
+      l2_gateway_router:
+        address: "0x5288c571Fd7aD117beA99bF60FE0846C4E84F933"
+        deployed_block: 2108
+        role: >-
+          Assigns each token its gateway. getGateway(l1Token) returns the gateway set for the
+          token, or the default gateway when none is set. outboundTransfer(l1Token, to, amount,
+          data) looks up that gateway, emits TransferRouted and forwards the call. Users can skip
+          the router and call a gateway directly, so it does not see every withdrawal.
+        source: >-
+          "L2 Gateway Router" for Arbitrum One on the contract addresses page. Deploy block from
+          Portal portal_evm_get_contract_deployment (create trace in tx
+          0x09bf65a9be362759f187135b1f7351f2ae7c6b6895b8ff78ace0fe7e2303a584). The address is a
+          proxy.
+      l2_erc20_gateway:
+        address: "0x09e9222E96E7B4AE2a407B98d48e330053351EEe"
+        deployed_block: 2107
+        role: >-
+          The standard gateway and the router's default gateway. It serves every token that has
+          no gateway of its own. On a token's first deposit it deploys a StandardArbERC20 for it,
+          then mints it on deposits and burns it on withdrawals.
+        source: >-
+          "L2 ERC20 Gateway" for Arbitrum One on the contract addresses page. Deploy block from
+          Portal portal_evm_get_contract_deployment (create trace in tx
+          0x64954c7b5ab821379947c4dda9ad9fcc5d21b93f963f0c133e9956e043d5fd69). The address is a
+          proxy. The router's defaultGateway() returned this address on 2026-11-05.
+      l2_custom_gateway:
+        address: "0x096760F208390250649E3e8763348E783AEF5562"
+        deployed_block: 2598
+        role: >-
+          Serves tokens that registered an L2 token of their own with the L1 Arb-Custom gateway.
+          It mints and burns that L2 token.
+        source: >-
+          "L2 Arb-Custom Gateway" for Arbitrum One on the contract addresses page. Deploy block
+          from Portal portal_evm_get_contract_deployment (create trace in tx
+          0x9ddfa6ac7c9e832a1b1309e1a5a8f96ad670355f4ee71ecc771930b87413a350). The address is a
+          proxy.
+      l2_weth_gateway:
+        address: "0x6c411aD3E74De3E7Bd422b94A27770f5B86C623B"
+        deployed_block: 38495
+        role: >-
+          Serves WETH only. A deposit arrives as ETH, which the gateway wraps into L2 WETH for the
+          user. A withdrawal burns the user's L2 WETH and sends the same amount of ETH to Ethereum
+          as call value.
+        source: >-
+          "L2 Weth Gateway" for Arbitrum One on the contract addresses page. Deploy block from the
+          create trace in tx 0x2b5d1d5b1e770cc54ec7c43bcd65bee74e217584c08132164c5781602d56b595,
+          found through the Portal stream API with a create-trace filter on this address
+          (portal_evm_get_contract_deployment was overloaded). The address is a proxy.
+      arbsys:
+        address: "0x0000000000000000000000000000000000000064"
+        deployed_block: null
+        role: >-
+          Precompile that queues the L2-to-L1 message. Its L2ToL1Tx event carries the call the
+          L1 gateway will receive.
+        source: >-
+          "ArbSys" in the precompiles section of the contract addresses page. A precompile has
+          no deploy transaction.
+ethereum_counterparts:
+  l1_gateway_router:
+    address: "0x72Ce9c846789fdB6fC1f34aC4AD25Dd9ef7031ef"
+    source: '"L1 Gateway Router" for Arbitrum One on the contract addresses page.'
+  l1_erc20_gateway:
+    address: "0xa3A7B6F88361F48403514059F1F16C8E78d60EeC"
+    source: >-
+      "L1 ERC20 Gateway" for Arbitrum One on the contract addresses page. It holds the Ethereum
+      tokens behind the L2 ERC20 gateway's tokens. On Arbitrum it is the L2ToL1Tx destination of
+      that gateway's withdrawals, and its aliased address
+      0xb4B8B6F88361F48403514059f1f16c8E78d61FFD is tx.from of its deposits.
+  l1_custom_gateway:
+    address: "0xcEe284F754E854890e311e3280b767F80797180d"
+    source: >-
+      "L1 Arb-Custom Gateway" for Arbitrum One on the contract addresses page. It holds the
+      Ethereum tokens behind the L2 custom gateway's tokens. Its aliased address is
+      0xdFf384F754E854890E311e3280B767F80797291e.
+  l1_weth_gateway:
+    address: "0xd92023E9d9911199a6711321D1277285e6d4e2db"
+    source: '"L1 Weth Gateway" for Arbitrum One on the contract addresses page.'
+  outbox:
+    address: "0x0B9857ae2D4A3DBe74ffE1d7DF045bb7F96E4840"
+    source: >-
+      "Outbox" for Arbitrum One on the contract addresses page. Users call
+      executeTransaction on it to release a withdrawal on Ethereum.
+events:
+  WithdrawalInitiated:
+    use: source
+    emitted_by: >-
+      every L2 gateway (l2_erc20_gateway, l2_custom_gateway, l2_weth_gateway and the
+      token-specific gateways in NOTES.md), since all of them inherit L2ArbitrumGateway
+    signature: "event WithdrawalInitiated(address l1Token, address indexed _from, address indexed _to, uint256 indexed _l2ToL1Id, uint256 _exitNum, uint256 _amount)"
+    topic0: "0x3073a74ecb728d10be779fe19a74a1428e20468f5b4d167bf9c73d9067847d73"
+    abi: abis/l2-gateway.json
+    fields:
+      l2_user: {param: _from, at: topic1}
+      l1_counterpart: {param: _to, at: topic2}
+      l1_token: {param: l1Token, at: data word 0, indexed: false}
+      amount: {param: _amount, at: data word 2}
+      withdrawal_id: {param: _l2ToL1Id, at: topic3}
+    token_filter: >-
+      l1Token is not indexed, so a query cannot filter on it. Query topic0, then keep the rows
+      whose decoded l1Token is the token's Ethereum address and whose emitter is the token's
+      gateway (see NOTES.md).
+  DepositFinalized:
+    use: source
+    emitted_by: >-
+      every L2 gateway (l2_erc20_gateway, l2_custom_gateway, l2_weth_gateway and the
+      token-specific gateways in NOTES.md), since all of them inherit L2ArbitrumGateway
+    signature: "event DepositFinalized(address indexed l1Token, address indexed _from, address indexed _to, uint256 _amount)"
+    topic0: "0xc7f2e9c55c40a50fbc217dfc70cd39a222940dfa62145aa0ca49eb9535d4fcb2"
+    abi: abis/l2-gateway.json
+    fields:
+      l1_token: {param: l1Token, at: topic1}
+      l1_counterpart: {param: _from, at: topic2}
+      l2_user: {param: _to, at: topic3}
+      amount: {param: _amount, at: data word 0}
+    token_filter: >-
+      topic1 = the token's Ethereum address padded to 32 bytes. Keep the rows whose emitter is
+      the token's gateway (see NOTES.md).
+  TransferRouted:
+    use: proof only
+    emitted_by: l2_gateway_router
+    signature: "event TransferRouted(address indexed token, address indexed _userFrom, address indexed _userTo, address gateway)"
+    topic0: "0x85291dff2161a93c2f12c819d31889c96c63042116f5bc5a205aa701c2c429f5"
+    abi: abis/l2-gateway-router.json
+  L2ToL1Tx:
+    use: proof only
+    emitted_by: arbsys
+    signature: "event L2ToL1Tx(address caller, address indexed destination, uint256 indexed hash, uint256 indexed position, uint256 arbBlockNum, uint256 ethBlockNum, uint256 timestamp, uint256 callvalue, bytes data)"
+    topic0: "0x3e7aafa77dbf186b7fd488006beff893744caa3c4f6f299e8a709fa2087374fc"
+    abi: abis/arbsys.json

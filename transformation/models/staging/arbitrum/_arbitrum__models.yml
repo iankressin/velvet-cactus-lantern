@@ -1,0 +1,76 @@
+version: 2
+
+models:
+  - name: stg_arbitrum__erc20_transfers
+    columns:
+      - name: id
+        data_tests: [unique, not_null]
+      - name: block_number
+        data_tests: [not_null]
+      - name: tx_hash
+        data_tests: [not_null]
+      - name: token
+        data_tests: [not_null]
+  - name: stg_arbitrum__address_code
+    columns:
+      - name: id
+        data_tests: [unique, not_null]
+      - name: address
+        data_tests: [not_null]
+      - name: code
+        data_tests: [not_null]
+  - name: stg_arbitrum__token_bridge
+    columns:
+      - name: id
+        data_tests: [unique, not_null]
+      - name: event
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [WithdrawalInitiated, DepositFinalized]
+      - name: amount
+        data_tests: [not_null]
+      - name: contract
+        description: >-
+          A contract that is not in the arbitrum_token_gateways seed is a new gateway, which needs a row
+          there, or a contract that imitates the events.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('arbitrum_token_gateways')
+                field: address
+              config:
+                severity: warn
+  - name: stg_arbitrum__chainlink_price_feeds
+    columns:
+      - name: id
+        data_tests: [unique, not_null]
+      - name: answer
+        data_tests: [not_null]
+      - name: aggregator
+        description: >-
+          An aggregator that is not in the chainlink_feeds seed is a new one in addresses.json, which needs
+          a row there, or its rounds drop out of oracle_prices.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('chainlink_feeds')
+                field: aggregator
+              config:
+                severity: warn
+  - name: stg_arbitrum__erc20_metadata
+    description: >-
+      The name, symbol and decimals of each token in evm-erc20-metadata's chains/arbitrum/addresses.json, one
+      row per token and block read. A bytes32 name or symbol is decoded as text, and zero bytes are dropped.
+    columns:
+      - name: id
+        data_tests: [unique, not_null]
+      - name: token
+        data_tests: [not_null]
+      - name: name
+        description: Null when name() reverted or returned nothing at that block.
+      - name: symbol
+        description: Null when symbol() reverted or returned nothing at that block.
+      - name: decimals
+        description: Null when decimals() reverted or returned nothing at that block, since ERC-20 makes it optional. Never assume 18.

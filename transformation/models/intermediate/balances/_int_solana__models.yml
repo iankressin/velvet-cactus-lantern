@@ -1,0 +1,40 @@
+version: 2
+
+models:
+  - name: int_solana_balances
+    description: SOL and SPL token balances in the shape latest_balances reads. `asset` is 'sol' or the mint address.
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: id
+        data_type: text
+        description: The record's key from the raw table, so a rerun replaces it instead of adding another.
+        data_tests: [unique, not_null]
+      - name: chain
+        data_type: text
+        description: Which chain this balance was read from.
+      - name: wallet
+        data_type: text
+        description: The address whose balance was read.
+      - name: asset_type
+        data_type: text
+        description: Whether this is a native, erc20, or spl balance.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [native, spl]
+      - name: asset
+        data_type: text
+        description: The native asset name ('eth', 'sol', 'btc') or the token or mint address.
+        data_tests: [not_null]
+      - name: block_number
+        data_type: bigint
+        description: The block, or Solana slot, this balance was read at.
+      - name: balance
+        data_type: numeric
+        description: The amount in the asset's base units (wei, lamports, satoshis, or token base units).
+        data_tests: [not_null]
+      - name: _loaded_at
+        data_type: timestamp with time zone
+        description: When the warehouse wrote this record into the raw table.

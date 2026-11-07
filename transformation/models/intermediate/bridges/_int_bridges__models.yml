@@ -1,0 +1,62 @@
+version: 2
+
+models:
+  - name: int_arbitrum_token_bridge_transfers
+    description: Arbitrum token bridge withdrawals and deposits, with the L2 and Ethereum address of each.
+    columns:
+      - name: id
+        data_tests: [unique, not_null]
+  - name: int_base_op_standard_bridge_transfers
+    description: Base standard bridge withdrawals and deposits, with the L2 and Ethereum address of each.
+    columns:
+      - name: id
+        data_tests: [unique, not_null]
+
+unit_tests:
+  - name: an_arbitrum_withdrawal_goes_from_the_l2_user_to_ethereum
+    description: >-
+      A UNI withdrawal and deposit read on Portal, whose two addresses are the same, and a deposit with
+      distinct addresses on each side.
+    model: int_arbitrum_token_bridge_transfers
+    given:
+      - input: ref('stg_arbitrum__token_bridge')
+        rows:
+          - {id: "512419364:106", event: WithdrawalInitiated, contract: "0x09e9222e96e7b4ae2a407b98d48e330053351eee", l1_token: "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984", from_address: "0x65a8f07bd9a8598e1b5b6c0a88f4779dbc077675", to_address: "0x65a8f07bd9a8598e1b5b6c0a88f4779dbc077675", amount: "940072965341185501539"}
+          - {id: "511075363:3", event: DepositFinalized, contract: "0x09e9222e96e7b4ae2a407b98d48e330053351eee", l1_token: "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984", from_address: "0x65a8f07bd9a8598e1b5b6c0a88f4779dbc077675", to_address: "0x65a8f07bd9a8598e1b5b6c0a88f4779dbc077675", amount: "230535619012808833421"}
+          - {id: "1:1", event: DepositFinalized, contract: "0x09e9222e96e7b4ae2a407b98d48e330053351eee", l1_token: "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984", from_address: "0x00000000000000000000000000000000000000cc", to_address: "0x00000000000000000000000000000000000000aa", amount: 1}
+      - input: ref('arbitrum_token_gateways')
+        rows:
+          - {address: "0x09e9222e96e7b4ae2a407b98d48e330053351eee", name: L2 ERC20 gateway}
+    expect:
+      rows:
+        - {id: "512419364:106", direction: to_ethereum, l2_address: "0x65a8f07bd9a8598e1b5b6c0a88f4779dbc077675", ethereum_address: "0x65a8f07bd9a8598e1b5b6c0a88f4779dbc077675", amount: "940072965341185501539"}
+        - {id: "511075363:3", direction: from_ethereum, l2_address: "0x65a8f07bd9a8598e1b5b6c0a88f4779dbc077675", ethereum_address: "0x65a8f07bd9a8598e1b5b6c0a88f4779dbc077675", amount: "230535619012808833421"}
+        - {id: "1:1", direction: from_ethereum, l2_address: "0x00000000000000000000000000000000000000aa", ethereum_address: "0x00000000000000000000000000000000000000cc", amount: 1}
+  - name: only_gateway_logs_become_arbitrum_bridge_moves
+    description: A log from a contract outside the seed, and a withdrawal a gateway sent from itself, are dropped.
+    model: int_arbitrum_token_bridge_transfers
+    given:
+      - input: ref('stg_arbitrum__token_bridge')
+        rows:
+          - {id: "1:1", event: DepositFinalized, contract: "0x096760f208390250649e3e8763348e783aef5562", l1_token: "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984", from_address: "0x00000000000000000000000000000000000000cc", to_address: "0x00000000000000000000000000000000000000aa", amount: 1}
+          - {id: "2:1", event: DepositFinalized, contract: "0x00000000000000000000000000000000000000ee", l1_token: "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984", from_address: "0x00000000000000000000000000000000000000cc", to_address: "0x00000000000000000000000000000000000000aa", amount: 5}
+          - {id: "3:1", event: WithdrawalInitiated, contract: "0x096760f208390250649e3e8763348e783aef5562", l1_token: "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984", from_address: "0x096760f208390250649e3e8763348e783aef5562", to_address: "0x00000000000000000000000000000000000000cc", amount: 7}
+      - input: ref('arbitrum_token_gateways')
+        rows:
+          - {address: "0x09e9222e96e7b4ae2a407b98d48e330053351eee", name: L2 ERC20 gateway}
+          - {address: "0x096760f208390250649e3e8763348e783aef5562", name: L2 Arb-Custom gateway}
+    expect:
+      rows:
+        - {id: "1:1"}
+  - name: a_base_deposit_goes_from_ethereum_to_the_l2_user
+    description: A UNI deposit and withdrawal read on Portal.
+    model: int_base_op_standard_bridge_transfers
+    given:
+      - input: ref('stg_base__op_standard_bridge')
+        rows:
+          - {id: "52025254:3", event: ERC20BridgeFinalized, local_token: "0xc3de830ea07524a0761646a6a4e4be0e114a3c83", remote_token: "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984", from_address: "0xa04059173992ca1a468ed4ecdcbc73de5ff1001c", to_address: "0xb59388d316381ab420722f6fea48baf3a386e056", amount: "2000000000000000000000"}
+          - {id: "52027687:215", event: ERC20BridgeInitiated, local_token: "0xc3de830ea07524a0761646a6a4e4be0e114a3c83", remote_token: "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984", from_address: "0x15409d50246a78f2d14fe31d752ffd843039094d", to_address: "0x15409d50246a78f2d14fe31d752ffd843039094d", amount: "1139238296067820365009"}
+    expect:
+      rows:
+        - {id: "52025254:3", direction: from_ethereum, l2_address: "0xb59388d316381ab420722f6fea48baf3a386e056", ethereum_address: "0xa04059173992ca1a468ed4ecdcbc73de5ff1001c", ethereum_token: "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984", l2_token: "0xc3de830ea07524a0761646a6a4e4be0e114a3c83"}
+        - {id: "52027687:215", direction: to_ethereum, l2_address: "0x15409d50246a78f2d14fe31d752ffd843039094d", ethereum_address: "0x15409d50246a78f2d14fe31d752ffd843039094d", ethereum_token: "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984", l2_token: "0xc3de830ea07524a0761646a6a4e4be0e114a3c83"}

@@ -1,0 +1,114 @@
+# Alert rules. Prometheus evaluates them (http://localhost:9090/alerts) and Grafana's built-in
+# alerting on :3001 is where they get routed in v1; there is no Alertmanager.
+#
+# The ingestion_* names and their source and table labels come from
+# ingestion/lib/src/run/metrics.ts, which each run pushes to the Pushgateway. The erpc_* names and
+# labels are the ones telemetry/metrics.go defines in the eRPC 0.5.0 release, and the dshackle_*
+# ones come from src/metrics in the Dshackle v0.18.0 release. Confirm the dshackle_* labels on the
+# first live scrape: http://localhost:9090/graph?g0.expr=dshackle_upstreams_availability
+groups:
+  - name: ingestion
+    rules:
+      # A run pushes 0 when it fails and the gauge stays 0 until a run succeeds.
+      - alert: IngestionRunFailed
+        expr: ingestion_last_run_success == 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.source }}.{{ $labels.table }}: last run failed"
+          description: "The last run of {{ $labels.source }}.{{ $labels.table }} failed. Its error is in ops.ingestion_runs and in the Dagster run log."
+
+      # Pipelines run daily, so 25h (same threshold as the Ingestion dashboard) means a day was
+      # missed. A source that has never succeeded has no timestamp and does not fire this.
+      - alert: IngestionRunStale
+        expr: time() - ingestion_last_success_timestamp_seconds > 90000
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.source }}.{{ $labels.table }}: no successful run for over 25h"
+          description: "{{ $labels.source }}.{{ $labels.table }} last succeeded {{ $value | humanizeDuration }} ago. Check the Dagster schedule and the last run's error."
+
+      # Parked dead letters are never retried; a person has to look at them.
+      - alert: IngestionDeadLettersParked
+        expr: ingestion_dead_letters{state="parked"} > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.source }}.{{ $labels.table }}: {{ $value }} parked dead letters"
+          description: "{{ $labels.source }}.{{ $labels.table }} has {{ $value }} dead letters that failed too often or no longer match the call schema. They are in the raw schema's _dead_letters table."
+
+  - name: rpc
+    rules:
+      # Covers erpc, dshackle, postgres-exporter and the pushgateway, as named in prometheus.yml.
+      - alert: ScrapeTargetDown
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.job }} is down"
+          description: "Prometheus cannot scrape {{ $labels.job }} at {{ $labels.instance }}. Check docker compose ps and the container's logs."
+
+      # Errors from one upstream are expected with free public RPCs: eRPC retries on another one.
+      # This fires when a quarter of a single upstream's calls fail, which is when eRPC's retries
+      # and hedges start to slow the sources down. eRPC's bundled rule (monitoring/prometheus/
+      # alert.rules in its repo) uses the same ratio with a 5% threshold.
+      - alert: ErpcUpstreamErrorRate
+        expr: |
+          sum by (network, upstream) (rate(erpc_upstream_request_errors_total[5m]))
+            / sum by (network, upstream) (rate(erpc_upstream_request_total[5m])) > 0.25
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "eRPC upstream {{ $labels.upstream }}: {{ $value | humanizePercentage }} errors"
+          description: "{{ $value | humanizePercentage }} of calls to {{ $labels.upstream }} on {{ $labels.network }} failed over the last 5 minutes. The eRPC dashboard lists the errors by type."
+
+      # A failure here reached the client after every retry and hedge, so a source saw it.
+      # severity is critical, warning or info; info covers expected cases such as a request that
+      # no upstream can serve, so it is left out.
+      - alert: ErpcNetworkFailedRequests
+        expr: |
+          sum by (network) (rate(erpc_network_failed_request_total{severity!="info"}[5m]))
+            / sum by (network) (rate(erpc_network_request_received_total[5m])) > 0.05
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "eRPC network {{ $labels.network }}: {{ $value | humanizePercentage }} of requests failed"
+          description: "{{ $value | humanizePercentage }} of requests to {{ $labels.network }} failed after every retry over the last 5 minutes, so the sources that use eRPC see errors."
+
+      # dshackle_upstreams_availability counts the upstreams of a chain in each status
+      # (ok, lagging, syncing, unavailable...). Below min-available in dshackle.yaml, which is 1,
+      # /health answers 503 and every Bitcoin call fails.
+      - alert: DshackleNoAvailableUpstream
+        expr: sum by (chain) (dshackle_upstreams_availability{status="ok"}) < 1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Dshackle has no available upstream for {{ $labels.chain }}"
+          description: "No {{ $labels.chain }} upstream has been in status ok for 5 minutes. http://localhost:8082/health?detailed shows each upstream's state."
+
+      # Requests that failed as the client saw them, by method.
+      - alert: DshackleFailedRequests
+        expr: sum by (chain) (rate(dshackle_request_jsonrpc_fail_total[5m])) > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Dshackle is failing requests on {{ $labels.chain }}"
+          description: "Dshackle failed {{ $value | humanize }} {{ $labels.chain }} requests per second over the last 5 minutes. The Dshackle dashboard breaks them down by method."
+
+      # An upstream that keeps failing its calls (tip polling included) for a quarter of an hour.
+      - alert: DshackleUpstreamErrors
+        expr: sum by (chain, upstream) (rate(dshackle_upstream_rpc_fail_total[5m])) > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Dshackle upstream {{ $labels.upstream }} keeps failing"
+          description: "Calls from Dshackle to {{ $labels.upstream }} ({{ $labels.chain }}) have failed for 15 minutes, {{ $value | humanize }} per second over the last 5. Dshackle routes around it while other upstreams are available."

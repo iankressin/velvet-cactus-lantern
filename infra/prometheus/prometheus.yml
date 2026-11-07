@@ -1,0 +1,24 @@
+global:
+  scrape_interval: 10s
+
+rule_files:
+  - alerts.yml
+
+scrape_configs:
+  - job_name: erpc
+    static_configs:
+      - targets: ["erpc:4001"]
+
+  - job_name: dshackle
+    static_configs:
+      - targets: ["dshackle:8081"]
+
+  - job_name: postgres
+    static_configs:
+      - targets: ["postgres-exporter:9187"]
+
+  # honor_labels keeps the job, source and table labels each ingestion run pushed.
+  - job_name: pushgateway
+    honor_labels: true
+    static_configs:
+      - targets: ["pushgateway:9091"]

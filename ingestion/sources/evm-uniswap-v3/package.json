@@ -1,0 +1,20 @@
+{
+  "name": "@ingestion/evm-uniswap-v3",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#src/*": "./src/*"
+  },
+  "scripts": {
+    "ingest": "tsx src/index.ts",
+    "test": "tsx --test src/*.test.ts"
+  },
+  "dependencies": {
+    "@ingestion/lib": "workspace:*",
+    "@subsquid/pipes": "1.0.0-beta.11",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "viem": "^2.57.16"
+  }
+}

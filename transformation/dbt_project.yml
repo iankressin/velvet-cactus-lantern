@@ -1,0 +1,51 @@
+name: transformation
+version: "1.0.0"
+profile: transformation
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+snapshot-paths: ["snapshots"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+analysis-paths: ["analyses"]
+
+clean-targets: ["target", "dbt_packages"]
+
+# The token the token_* analyses follow. To follow another, load its transfers, bridge moves and address
+# code, then pass it with --vars '{token: {...}}'.
+vars:
+  token:
+    ethereum: "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984"
+    decimals: 18
+    windows:
+      - {chain: arbitrum, token: "0xfa7f8980b0f1e64a2062791cc3b0871572f1f7f0", blocks: [510496864, 520129273]}
+      - {chain: base, token: "0xc3de830ea07524a0761646a6a4e4be0e114a3c83", blocks: [52011727, 53350926]}
+
+models:
+  transformation:
+    staging:
+      +materialized: view
+    intermediate:
+      +materialized: ephemeral
+      # Views, not ephemeral, so each chain's rows show up as their own step in Dagster.
+      balances:
+        +materialized: view
+      # Views, so each protocol version's rows show up as their own step in Dagster.
+      dex:
+        +materialized: view
+      # Views, so each chain's transfers show up as their own step in Dagster.
+      transfers:
+        +materialized: view
+      # Views, so each chain's code readings show up as their own step in Dagster.
+      labels:
+        +materialized: view
+      # Views, so each bridge's rows show up as their own step in Dagster.
+      bridges:
+        +materialized: view
+      prices:
+        +materialized: view
+      # Views, so each chain's metadata readings show up as their own step in Dagster.
+      tokens:
+        +materialized: view
+    marts:
+      +materialized: table

@@ -1,0 +1,18 @@
+version: 2
+
+models:
+  - name: int_ethereum_erc20_metadata
+    description: Ethereum token metadata readings in the shape the tokens mart reads.
+    columns:
+      - name: id
+        data_tests: [unique, not_null]
+  - name: int_arbitrum_erc20_metadata
+    description: Arbitrum token metadata readings in the shape the tokens mart reads.
+    columns:
+      - name: id
+        data_tests: [unique, not_null]
+  - name: int_base_erc20_metadata
+    description: Base token metadata readings in the shape the tokens mart reads.
+    columns:
+      - name: id
+        data_tests: [unique, not_null]

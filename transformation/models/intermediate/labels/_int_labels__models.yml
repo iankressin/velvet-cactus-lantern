@@ -1,0 +1,42 @@
+version: 2
+
+models:
+  - name: int_arbitrum_address_code
+    description: Each Arbitrum address's latest code reading and what kind of code it is.
+    columns:
+      - name: address
+        data_tests: [unique, not_null]
+      - name: code_kind
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [none, eip7702_delegation, contract]
+  - name: int_base_address_code
+    description: Each Base address's latest code reading and what kind of code it is.
+    columns:
+      - name: address
+        data_tests: [unique, not_null]
+      - name: code_kind
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [none, eip7702_delegation, contract]
+
+unit_tests:
+  - name: code_kinds_follow_eip_7702
+    description: A delegation designator is an EOA's, other code is a contract's, and the latest reading wins.
+    model: int_base_address_code
+    given:
+      - input: ref('stg_base__address_code')
+        rows:
+          - {address: "0x00000000000000000000000000000000000000aa", block_number: 1, code: "0x"}
+          - {address: "0x00000000000000000000000000000000000000bb", block_number: 1, code: "0xef010063c0c19a282a1b52b07dd5a65b58948a07dae32b"}
+          - {address: "0x00000000000000000000000000000000000000cc", block_number: 1, code: "0x6080604052"}
+          - {address: "0x00000000000000000000000000000000000000dd", block_number: 1, code: "0x"}
+          - {address: "0x00000000000000000000000000000000000000dd", block_number: 2, code: "0x6080604052"}
+    expect:
+      rows:
+        - {address: "0x00000000000000000000000000000000000000aa", code_kind: none}
+        - {address: "0x00000000000000000000000000000000000000bb", code_kind: eip7702_delegation}
+        - {address: "0x00000000000000000000000000000000000000cc", code_kind: contract}
+        - {address: "0x00000000000000000000000000000000000000dd", code_kind: contract}

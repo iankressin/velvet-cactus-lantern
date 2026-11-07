@@ -1,0 +1,12 @@
+version: 2
+
+# Source name + table name must match the ingestion Source's `name` + `table`.
+sources:
+  - name: binance
+    schema: "{{ env_var('RAW_SCHEMA', 'raw') }}"
+    tables:
+      - name: candles
+        identifier: binance_candles
+        columns:
+          - name: id
+            data_tests: [unique, not_null]

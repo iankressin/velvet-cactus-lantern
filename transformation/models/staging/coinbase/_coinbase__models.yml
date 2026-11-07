@@ -1,0 +1,15 @@
+version: 2
+
+models:
+  - name: stg_coinbase__candles
+    columns:
+      - name: id
+        data_tests: [unique, not_null]
+      - name: product_id
+        data_tests: [not_null]
+      - name: interval
+        data_tests: [not_null]
+      - name: open_time
+        data_tests: [not_null]
+      - name: close
+        data_tests: [not_null]

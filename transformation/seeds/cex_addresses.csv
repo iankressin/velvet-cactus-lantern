@@ -1,0 +1,8 @@
+chain,address,exchange,label
+arbitrum,0xcdd37ada79f589c15bd4f8fd2083dc88e34a2af2,Sideshift,Sideshift 1
+base,0x20fe51a9229eef2cf8ad9e89d91cab9312cf3b7a,Coinbase,Coinbase 21
+base,0x739120ade7ed878fca5bbdb806263a8258fe2360,Coinbase,Coinbase 29
+base,0x6dcbce46a8b494c885d0e7b6817d2b519df64467,Coinbase,Coinbase 31
+base,0xd34ea7278e6bd48defe656bbe263aef11101469c,Coinbase,Coinbase 34
+base,0x1985ea6e9c68e1c272d8209f3b478ac2fdb25c87,Coinbase,Coinbase 41
+base,0x40ebc1ac8d4fedd2e144b75fe9c0420be82750c6,Coinbase,Coinbase 55

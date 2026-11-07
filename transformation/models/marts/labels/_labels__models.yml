@@ -1,0 +1,48 @@
+version: 2
+
+models:
+  - name: address_labels
+    data_tests:
+      - unique:
+          arguments:
+            column_name: "chain || ':' || address"
+    columns:
+      - name: chain
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [arbitrum, base]
+      - name: address
+        data_tests: [not_null]
+      - name: kind
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [exchange, contract, eoa]
+
+unit_tests:
+  - name: an_exchange_label_wins_over_code
+    description: A labelled exchange is an exchange whatever its code; other code makes a contract; a delegation stays an EOA.
+    model: address_labels
+    given:
+      - input: ref('int_arbitrum_address_code')
+        rows:
+          - {chain: arbitrum, address: "0x00000000000000000000000000000000000000aa", code_block: 1, code_kind: contract}
+          - {chain: arbitrum, address: "0x00000000000000000000000000000000000000bb", code_block: 1, code_kind: contract}
+          - {chain: arbitrum, address: "0x00000000000000000000000000000000000000cc", code_block: 1, code_kind: eip7702_delegation}
+          - {chain: arbitrum, address: "0x00000000000000000000000000000000000000dd", code_kind: none, code_block: 1}
+      - input: ref('int_base_address_code')
+        rows:
+          - {chain: base, address: "0x00000000000000000000000000000000000000aa", code_block: 1, code_kind: none}
+      - input: ref('cex_addresses')
+        rows:
+          - {chain: arbitrum, address: "0x00000000000000000000000000000000000000AA", exchange: Coinbase, label: Coinbase 1}
+    expect:
+      rows:
+        - {chain: arbitrum, address: "0x00000000000000000000000000000000000000aa", kind: exchange, exchange: Coinbase}
+        - {chain: arbitrum, address: "0x00000000000000000000000000000000000000bb", kind: contract, exchange: null}
+        - {chain: arbitrum, address: "0x00000000000000000000000000000000000000cc", kind: eoa, exchange: null}
+        - {chain: arbitrum, address: "0x00000000000000000000000000000000000000dd", kind: eoa, exchange: null}
+        - {chain: base, address: "0x00000000000000000000000000000000000000aa", kind: eoa, exchange: null}

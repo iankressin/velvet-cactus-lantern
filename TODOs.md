@@ -1,0 +1,13 @@
+- [ ] Add skills
+    - [ ] Generate report: GDoc, Pdf, Spreadsheet
+    - [ ] New pipeline
+    - [ ] Schedule jobs
+- [ ] Historical data through SQD
+- [ ] Historical data through RPC
+- [ ] Support for BTC
+- [ ] Token list
+- [ ] Token prices
+    - [ ] Binance
+    - [ ] Coinbase
+    - [ ] Chainlink oracles
+

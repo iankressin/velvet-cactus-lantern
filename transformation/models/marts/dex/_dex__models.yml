@@ -1,0 +1,38 @@
+version: 2
+
+models:
+  - name: dex_trades
+    columns:
+      - name: id
+        data_tests: [unique, not_null]
+      - name: chain
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [ethereum]
+      - name: protocol
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [uniswap]
+      - name: version
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [v2, v3, v4]
+      - name: pool
+        data_tests: [not_null]
+      - name: block_number
+        data_tests: [not_null]
+      - name: tx_hash
+        data_tests: [not_null]
+      - name: tx_from
+        data_tests: [not_null]
+      - name: token_bought
+        data_tests: [not_null]
+      - name: amount_bought
+        data_tests: [not_null]
+      - name: token_sold
+        data_tests: [not_null]
+      - name: amount_sold
+        data_tests: [not_null]

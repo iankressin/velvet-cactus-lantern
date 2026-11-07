@@ -1,0 +1,23 @@
+.env
+.DS_Store
+
+# ingestion
+ingestion/**/node_modules/
+# The pools Pipes' factory pattern has found, kept in the folder of each chain a source follows.
+ingestion/sources/*/chains/*/factory.sqlite*
+
+# transformation
+transformation/target/
+transformation/dbt_packages/
+transformation/logs/
+transformation/.user.yml
+
+# orchestration
+orchestration/.venv/
+orchestration/.dagster_home/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+
+# answers: what the skill and bj answer write for each question stays local
+answers/

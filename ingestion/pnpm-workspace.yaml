@@ -1,0 +1,9 @@
+packages:
+  - lib
+  - sources/*
+
+# better-sqlite3 keeps the pools that Pipes' factory pattern finds (the evm-uniswap-* sources).
+# Pipes takes it as an optional peer, which pnpm resolves from this root for lib and every source, so
+# they share one copy of Pipes. Its install script fetches a prebuilt binary.
+onlyBuiltDependencies:
+  - better-sqlite3

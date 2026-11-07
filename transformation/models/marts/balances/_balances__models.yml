@@ -1,0 +1,31 @@
+version: 2
+
+models:
+  - name: latest_balances
+    description: Each wallet's latest balance of each asset, on every chain this mart covers. Balance is in the asset's base units (wei, lamports, satoshis, or token base units).
+    columns:
+      - name: chain
+        description: Which chain this balance was read from.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [ethereum, solana, bitcoin]
+      - name: wallet
+        description: The address whose balance was read.
+        data_tests: [not_null]
+      - name: asset_type
+        description: Whether this is a native, erc20, or spl balance.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [native, erc20, spl]
+      - name: asset
+        description: The native asset name ('eth', 'sol', 'btc') or the token or mint address.
+        data_tests: [not_null]
+      - name: block_number
+        description: The block, or Solana slot, this balance was read at.
+        data_tests: [not_null]
+      - name: balance
+        description: The amount in the asset's base units (wei, lamports, satoshis, or token base units).
+        data_tests: [not_null]

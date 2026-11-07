@@ -1,0 +1,25 @@
+version: 2
+
+models:
+  - name: stg_solana__sol_balances
+    columns:
+      - name: id
+        data_tests: [unique, not_null]
+      - name: slot
+        data_tests: [not_null]
+      - name: wallet
+        data_tests: [not_null]
+      - name: balance
+        data_tests: [not_null]
+  - name: stg_solana__spl_balances
+    columns:
+      - name: id
+        data_tests: [unique, not_null]
+      - name: slot
+        data_tests: [not_null]
+      - name: wallet
+        data_tests: [not_null]
+      - name: mint
+        data_tests: [not_null]
+      - name: balance
+        data_tests: [not_null]

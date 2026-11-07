@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "sqd-portal": {
+      "type": "http",
+      "url": "https://portal.sqd.dev/mcp"
+    }
+  }
+}

@@ -1,0 +1,12 @@
+version: 2
+
+# Source name + table name must match the ingestion Source's `name` + `table`.
+sources:
+  - name: bitcoin
+    schema: "{{ env_var('RAW_SCHEMA', 'raw') }}"
+    tables:
+      - name: btc_balances
+        identifier: bitcoin_btc_balances
+        columns:
+          - name: id
+            data_tests: [unique, not_null]

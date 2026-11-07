@@ -1,0 +1,98 @@
+version: 2
+
+models:
+  - name: erc20_transfers
+    data_tests:
+      - unique:
+          arguments:
+            column_name: "chain || ':' || id"
+    columns:
+      - name: chain
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [ethereum, arbitrum, base]
+      - name: id
+        data_tests: [not_null]
+      - name: block_number
+        data_tests: [not_null]
+      - name: tx_hash
+        data_tests: [not_null]
+      - name: token
+        data_tests: [not_null]
+      - name: value
+        data_tests: [not_null]
+  - name: classified_transfers
+    data_tests:
+      - unique:
+          arguments:
+            column_name: "chain || ':' || id"
+    columns:
+      - name: from_kind
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [exchange, deposit, contract, eoa, bridge, unknown]
+      - name: to_kind
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [exchange, deposit, contract, eoa, bridge, unknown]
+      - name: from_entity
+        data_tests: [not_null]
+      - name: to_entity
+        data_tests: [not_null]
+      - name: category
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [bridge, exchange, contract, p2p, unknown]
+
+unit_tests:
+  - name: a_deposit_address_sends_only_to_one_exchange
+    description: >-
+      0xd1 sends its one Arbitrum transfer to Binance, so it is a Binance deposit address and 0xa1 paying it
+      pays Binance. 0xd2 sends one token to Binance and another to an EOA, 0xd3 sends to two exchanges, and
+      Binance's own 0xe1 sends only to Coinbase: none of them is a deposit address. 0xd1's Base transfer
+      does not count against it on Arbitrum. A mint is a bridge transfer even into an exchange, and a
+      transfer to self is left out.
+    model: classified_transfers
+    given:
+      - input: ref('erc20_transfers')
+        rows:
+          - {chain: arbitrum, id: "1:1", token: "0xt1", from_address: "0xa1", to_address: "0xd1", value: 1}
+          - {chain: arbitrum, id: "1:2", token: "0xt1", from_address: "0xd1", to_address: "0xe1", value: 1}
+          - {chain: arbitrum, id: "1:3", token: "0xt1", from_address: "0xd2", to_address: "0xe1", value: 1}
+          - {chain: arbitrum, id: "1:4", token: "0xt2", from_address: "0xd2", to_address: "0xa2", value: 1}
+          - {chain: arbitrum, id: "1:5", token: "0xt1", from_address: "0xd3", to_address: "0xe1", value: 1}
+          - {chain: arbitrum, id: "1:6", token: "0xt1", from_address: "0xd3", to_address: "0xe2", value: 1}
+          - {chain: arbitrum, id: "1:7", token: "0xt1", from_address: "0x0000000000000000000000000000000000000000", to_address: "0xe2", value: 1}
+          - {chain: arbitrum, id: "1:8", token: "0xt1", from_address: "0xe1", to_address: "0xe2", value: 1}
+          - {chain: arbitrum, id: "1:9", token: "0xt1", from_address: "0xa1", to_address: "0xc1", value: 1}
+          - {chain: arbitrum, id: "1:10", token: "0xt1", from_address: "0xa1", to_address: "0xa2", value: 1}
+          - {chain: arbitrum, id: "1:11", token: "0xt1", from_address: "0xa1", to_address: "0xa1", value: 1}
+          - {chain: base, id: "2:1", token: "0xt1", from_address: "0xd1", to_address: "0xa1", value: 1}
+      - input: ref('address_labels')
+        rows:
+          - {chain: arbitrum, address: "0xe1", kind: exchange, exchange: Binance}
+          - {chain: arbitrum, address: "0xe2", kind: exchange, exchange: Coinbase}
+          - {chain: arbitrum, address: "0xc1", kind: contract, exchange: null}
+          - {chain: arbitrum, address: "0xa1", kind: eoa, exchange: null}
+          - {chain: arbitrum, address: "0xa2", kind: eoa, exchange: null}
+    expect:
+      rows:
+        - {chain: arbitrum, id: "1:1", from_kind: eoa, from_entity: "0xa1", from_group: eoa, to_kind: deposit, to_entity: Binance, to_group: exchange, category: exchange}
+        - {chain: arbitrum, id: "1:2", from_kind: deposit, from_entity: Binance, from_group: exchange, to_kind: exchange, to_entity: Binance, to_group: exchange, category: exchange}
+        - {chain: arbitrum, id: "1:3", from_kind: unknown, from_entity: "0xd2", from_group: unknown, to_kind: exchange, to_entity: Binance, to_group: exchange, category: exchange}
+        - {chain: arbitrum, id: "1:4", from_kind: unknown, from_entity: "0xd2", from_group: unknown, to_kind: eoa, to_entity: "0xa2", to_group: eoa, category: unknown}
+        - {chain: arbitrum, id: "1:5", from_kind: unknown, from_entity: "0xd3", from_group: unknown, to_kind: exchange, to_entity: Binance, to_group: exchange, category: exchange}
+        - {chain: arbitrum, id: "1:6", from_kind: unknown, from_entity: "0xd3", from_group: unknown, to_kind: exchange, to_entity: Coinbase, to_group: exchange, category: exchange}
+        - {chain: arbitrum, id: "1:7", from_kind: bridge, from_entity: "bridge:arbitrum", from_group: bridge, to_kind: exchange, to_entity: Coinbase, to_group: exchange, category: bridge}
+        - {chain: arbitrum, id: "1:8", from_kind: exchange, from_entity: Binance, from_group: exchange, to_kind: exchange, to_entity: Coinbase, to_group: exchange, category: exchange}
+        - {chain: arbitrum, id: "1:9", from_kind: eoa, from_entity: "0xa1", from_group: eoa, to_kind: contract, to_entity: "0xc1", to_group: contract, category: contract}
+        - {chain: arbitrum, id: "1:10", from_kind: eoa, from_entity: "0xa1", from_group: eoa, to_kind: eoa, to_entity: "0xa2", to_group: eoa, category: p2p}
+        - {chain: base, id: "2:1", from_kind: unknown, from_entity: "0xd1", from_group: unknown, to_kind: unknown, to_entity: "0xa1", to_group: unknown, category: unknown}
