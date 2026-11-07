@@ -23,6 +23,12 @@ export const METAPLEX_PROGRAM = address("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt51
 /** The first byte of a Metaplex metadata account (Key::MetadataV1). */
 const METADATA_KEY = 4;
 
+/** The SPL Token and Token-2022 programs, which own every mint. */
+const TOKEN_PROGRAMS = new Set<Address>([
+  address("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"),
+  address("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"),
+]);
+
 export const metadataCallSchema = z.object({
   kind: z.literal("spl_metadata"),
   mint: solanaAddress,
@@ -84,8 +90,15 @@ const mintInfo = z.object({
 
 const tokenMetadataState = z.object({ name: z.string(), symbol: z.string() });
 
-/** The mint's decimals and the names in its Token-2022 metadata extension. Nulls when the account is not a mint. */
+/**
+ * The mint's decimals and the names in its Token-2022 metadata extension. Nulls when the account
+ * is not a mint. Throws when the RPC could not parse a token program's account, such as a node
+ * older than the mint's newest extension: a null reading would replace the mint's good decimals.
+ */
 function readMint(account: Account): { decimals: number | null; names: Names } {
+  if (account !== null && !("parsed" in account.data) && TOKEN_PROGRAMS.has(account.owner)) {
+    throw new Error(`The RPC returned ${account.owner}'s account unparsed`);
+  }
   if (account === null || !("parsed" in account.data) || account.data.parsed.type !== "mint") {
     return { decimals: null, names: NO_NAMES };
   }

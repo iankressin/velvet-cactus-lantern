@@ -240,6 +240,23 @@ test("records nulls when the mint has no account or is a wallet, without failing
   );
 });
 
+test("queues a token-program account the RPC returns unparsed, rather than record no decimals", async (t) => {
+  // An RPC that cannot parse an account, such as one older than a mint's newest extension, sends base64.
+  const unparsed = (owner: Address) => account(owner, ["AQID", "base64"]);
+  const { url } = await fakeRpc(t, {
+    [classic]: { mint: unparsed(TOKEN) },
+    [token2022]: { mint: unparsed(TOKEN_2022) },
+  });
+
+  const batch = await fetchMetadata(rpcAt(url), metadataCalls([classic, token2022]));
+
+  assert.deepEqual(batch.records, [], "a null reading would replace the mint's good decimals in analytics.tokens");
+  assert.deepEqual(
+    batch.failed.map(({ id }) => id),
+    [classic, token2022],
+  );
+});
+
 test("records null Metaplex names when its address holds only lamports", async (t) => {
   const { url } = await fakeRpc(t, { [classic]: { mint: mintAccount(6), metaplex: lamportsOnly } });
 
