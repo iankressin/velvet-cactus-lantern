@@ -4,7 +4,7 @@ models:
   - name: tokens
     description: >-
       Each token's latest name, symbol and decimals, one row per chain and token in the ethereum erc20 and
-      solana spl rows of ingestion/wallet-assets.csv or in the addresses.json of evm-erc20-metadata and
+      solana spl rows of input/wallet-assets.csv or in the addresses.json of evm-erc20-metadata and
       solana-spl-metadata. Symbols are not unique, even on one chain, so key on chain and token, never on
       symbol.
     data_tests:

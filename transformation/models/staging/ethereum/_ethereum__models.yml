@@ -21,7 +21,7 @@ models:
         data_tests: [not_null]
   - name: stg_ethereum__erc20_metadata
     description: >-
-      The name, symbol and decimals of each token in the ethereum erc20 rows of ingestion/wallet-assets.csv
+      The name, symbol and decimals of each token in the ethereum erc20 rows of input/wallet-assets.csv
       or evm-erc20-metadata's chains/ethereum/addresses.json, one row per token and block read. A bytes32
       name or symbol is decoded as text, and zero bytes are dropped.
     columns:

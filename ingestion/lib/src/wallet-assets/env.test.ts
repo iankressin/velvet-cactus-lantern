@@ -4,8 +4,8 @@ import { fileURLToPath } from "node:url";
 import { evmBlockchain, walletAssetsEnv } from "#src/wallet-assets/env.ts";
 import { readWalletAssets } from "#src/wallet-assets/wallet-assets.ts";
 
-test("points a balance source at ingestion/wallet-assets.csv unless WALLET_ASSETS_CSV says otherwise", () => {
-  assert.deepEqual(walletAssetsEnv.parse({}), { WALLET_ASSETS_CSV: "../../wallet-assets.csv" });
+test("points a balance source at input/wallet-assets.csv unless WALLET_ASSETS_CSV says otherwise", () => {
+  assert.deepEqual(walletAssetsEnv.parse({}), { WALLET_ASSETS_CSV: "../../../input/wallet-assets.csv" });
   assert.deepEqual(walletAssetsEnv.parse({ WALLET_ASSETS_CSV: "mine.csv" }), { WALLET_ASSETS_CSV: "mine.csv" });
 });
 

@@ -30,7 +30,7 @@ Write `transformation/analyses/<name>.sql`, where `<name>` is the slug with `_` 
 - Select from marts with `{{ ref() }}`, never from staging or raw tables.
 - Put the headline in the first analysis as one row and one column. `bj` records that cell as the answer's value.
 - Put a breakdown in a second analysis, `<name>_by_<thing>.sql`, and list both under `analyses` in `question.yaml`.
-- Convert base units in SQL (wei to ETH, satoshis to BTC, token units by decimals) and name the unit in the column, such as `eth`. Take an ERC-20 or SPL token's decimals from the `tokens` mart, joined on `chain` and `token`. Every token in `ingestion/wallet-assets.csv` is there once the `tokens` job has run. A token missing there needs its address in `evm-erc20-metadata`'s `chains/<chain>/addresses.json`, or, for a Solana mint, in `solana-spl-metadata`'s `addresses.json`.
+- Convert base units in SQL (wei to ETH, satoshis to BTC, token units by decimals) and name the unit in the column, such as `eth`. Take an ERC-20 or SPL token's decimals from the `tokens` mart, joined on `chain` and `token`. Every token in `input/wallet-assets.csv` is there once the `tokens` job has run. A token missing there needs its address in `evm-erc20-metadata`'s `chains/<chain>/addresses.json`, or, for a Solana mint, in `solana-spl-metadata`'s `addresses.json`.
 
 ## 4. Run and check
 

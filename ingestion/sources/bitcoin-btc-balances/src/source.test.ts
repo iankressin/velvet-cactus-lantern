@@ -28,7 +28,7 @@ async function firstBatch(WALLET_ASSETS_CSV: string) {
 test("reads the shared wallet asset CSV unless WALLET_ASSETS_CSV says otherwise", () => {
   assert.deepEqual(bitcoinBtcBalances.env.parse({ DSHACKLE_URL }), {
     DSHACKLE_URL,
-    WALLET_ASSETS_CSV: "../../wallet-assets.csv",
+    WALLET_ASSETS_CSV: "../../../input/wallet-assets.csv",
   });
   assert.deepEqual(bitcoinBtcBalances.env.parse({ DSHACKLE_URL, WALLET_ASSETS_CSV: "mine.csv" }), {
     DSHACKLE_URL,
