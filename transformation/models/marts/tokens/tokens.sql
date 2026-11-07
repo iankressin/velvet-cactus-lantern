@@ -8,16 +8,6 @@ with readings as (
     union all
 
     select chain, token, name, symbol, decimals, block_number, _loaded_at
-    from {{ ref('int_arbitrum_erc20_metadata') }}
-
-    union all
-
-    select chain, token, name, symbol, decimals, block_number, _loaded_at
-    from {{ ref('int_base_erc20_metadata') }}
-
-    union all
-
-    select chain, token, name, symbol, decimals, block_number, _loaded_at
     from {{ ref('int_solana_spl_metadata') }}
 )
 

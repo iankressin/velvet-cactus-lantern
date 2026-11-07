@@ -47,37 +47,10 @@ def test_mart_reads_each_chain_through_its_intermediate_model():
     }
 
 
-def test_dex_trades_reads_each_protocol_version_through_its_own_model():
-    graph = defs.resolve_asset_graph()
-    versions = ["v2", "v3", "v4"]
-    assert graph.get(dg.AssetKey("dex_trades")).parent_keys == {
-        dg.AssetKey(f"int_ethereum_uniswap_{version}_trades") for version in versions
-    }
-    for version in versions:
-        assert graph.get(dg.AssetKey(f"int_ethereum_uniswap_{version}_trades")).parent_keys == {
-            dg.AssetKey(f"stg_ethereum__uniswap_{version}"),
-            dg.AssetKey(f"stg_ethereum__uniswap_{version}_transactions"),
-        }
-
-
-def test_erc20_transfers_reads_each_chain_through_its_own_model():
-    graph = defs.resolve_asset_graph()
-    chains = ["ethereum", "arbitrum", "base"]
-    assert graph.get(dg.AssetKey("erc20_transfers")).parent_keys == {
-        dg.AssetKey(f"int_{chain}_erc20_transfers") for chain in chains
-    }
-    for chain in chains:
-        assert graph.get(dg.AssetKey(f"int_{chain}_erc20_transfers")).parent_keys == {
-            dg.AssetKey(f"stg_{chain}__erc20_transfers"),
-        }
-
-
 def test_tokens_reads_each_chain_through_its_own_model():
     graph = defs.resolve_asset_graph()
     assert graph.get(dg.AssetKey("tokens")).parent_keys == {
         dg.AssetKey("int_ethereum_erc20_metadata"),
-        dg.AssetKey("int_arbitrum_erc20_metadata"),
-        dg.AssetKey("int_base_erc20_metadata"),
         dg.AssetKey("int_solana_spl_metadata"),
     }
     assert graph.get(dg.AssetKey("int_solana_spl_metadata")).parent_keys == {
@@ -98,7 +71,7 @@ def test_balances_job_ingests_the_balances_and_every_source_tokens_reads():
     job = next(job for job in defs.jobs if job.name == "balances")
     ingested = {key for key in job.selection.resolve(graph) if tuple(key.path) in SOURCES}
     # latest_balances takes token decimals from tokens, so the job also loads every metadata source tokens
-    # reads, Arbitrum and Base among them. A failed load there skips the job's dbt step.
+    # reads. A failed load there skips the job's dbt step.
     assert ingested == {
         dg.AssetKey(["ethereum", "eth_balances"]),
         dg.AssetKey(["ethereum", "erc20_balances"]),
@@ -106,8 +79,6 @@ def test_balances_job_ingests_the_balances_and_every_source_tokens_reads():
         dg.AssetKey(["solana", "spl_balances"]),
         dg.AssetKey(["bitcoin", "btc_balances"]),
         dg.AssetKey(["ethereum", "erc20_metadata"]),
-        dg.AssetKey(["arbitrum", "erc20_metadata"]),
-        dg.AssetKey(["base", "erc20_metadata"]),
         dg.AssetKey(["solana", "spl_metadata"]),
     }
 

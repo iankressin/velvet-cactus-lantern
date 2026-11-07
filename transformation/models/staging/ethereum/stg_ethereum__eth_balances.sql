@@ -1,4 +1,4 @@
--- Wallet addresses are lowercased, matching the Uniswap staging models.
+-- Wallet addresses are lowercased.
 select
     id,
     (data ->> 'block_number')::bigint as block_number,
