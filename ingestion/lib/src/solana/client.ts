@@ -21,11 +21,13 @@ export type SolanaClientOptions = {
 /** Spaces calls at least `intervalMs` apart, in the order they ask. */
 function createPacer(intervalMs: number) {
   let next = 0;
-  return async () => {
-    const now = Date.now();
-    const at = Math.max(now, next);
-    next = at + intervalMs;
-    if (at > now) await sleep(at - now);
+  let pending = Promise.resolve();
+  return () => {
+    pending = pending.then(async () => {
+      while (next > Date.now()) await sleep(next - Date.now());
+      next = Date.now() + intervalMs;
+    });
+    return pending;
   };
 }
 
