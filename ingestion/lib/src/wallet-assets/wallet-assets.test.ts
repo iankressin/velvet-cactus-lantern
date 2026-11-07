@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { parseWalletAssets, readWalletAssets } from "#src/wallet-assets/wallet-assets.ts";
+import {
+  parseWalletAssets,
+  readWalletAssets,
+  type AssetType,
+  type Blockchain,
+} from "#src/wallet-assets/wallet-assets.ts";
 
 const HEADER = "blockchain,wallet_address,token_address";
 const csv = (...rows: string[]) => [HEADER, ...rows].join("\n") + "\n";
@@ -63,3 +68,72 @@ export const typeChecks = (path: string) => {
   const tokens: { tokenAddress: `0x${string}` }[] = readWalletAssets(path, "ethereum", "erc20");
   return tokens;
 };
+
+const noWarnings = (message: string) => assert.fail(`unexpected warning: ${message}`);
+const badChecksum = "0xa0B86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
+const testnet = "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx";
+
+const withBadRows = csv(
+  `ethereum,${vitalik},`,
+  `ethereum,0x123,`,
+  `ethereum,0x456,ETH`,
+  `ethereum,${badChecksum},${usdc}`,
+  `solana,${solWallet},`,
+  `solana,${solWallet},SOL`,
+  `bitcoin,${btcWallet},${usdc}`,
+  `bitcoin,${btcWallet}`,
+  `bitcoin,${testnet},`,
+);
+
+test("fails only the read whose rows are bad, listing each problem by line", () => {
+  const read = (blockchain: Blockchain, assetType?: AssetType) =>
+    parseWalletAssets(withBadRows, "wallets.csv", blockchain, assetType, noWarnings);
+
+  assert.throws(() => read("ethereum", "native"), {
+    message: 'Invalid ethereum native rows in wallets.csv:\n  line 3: wallet_address "0x123" is not an Ethereum address',
+  });
+  assert.throws(() => read("ethereum", "erc20"), {
+    message: [
+      "Invalid ethereum erc20 rows in wallets.csv:",
+      '  line 4: wallet_address "0x456" is not an Ethereum address',
+      '  line 4: token_address "ETH" is not an Ethereum address; leave it empty for ETH',
+      `  line 5: wallet_address "${badChecksum}" is not an Ethereum address`,
+    ].join("\n"),
+  });
+  assert.throws(() => read("ethereum"), { message: /^Invalid ethereum rows in wallets\.csv:\n  line 3: .*\n  line 4: .*\n  line 4: .*\n  line 5: / });
+  assert.deepEqual(read("solana", "native"), [solNative]);
+  assert.throws(() => read("solana", "spl"), {
+    message: 'Invalid solana spl rows in wallets.csv:\n  line 7: token_address "SOL" is not a Solana address; leave it empty for SOL',
+  });
+  assert.throws(() => read("bitcoin"), {
+    message: [
+      "Invalid bitcoin rows in wallets.csv:",
+      "  line 8: bitcoin has no tokens; leave token_address empty",
+      "  line 9: has 2 cells; the header has 3",
+      `  line 10: wallet_address "${testnet}" is not a Bitcoin address`,
+    ].join("\n"),
+  });
+});
+
+test("warns in every read about rows on a chain no source reads", () => {
+  const warnings: string[] = [];
+  const text = csv(`Ethereum,${vitalik},`, `ethereum,${vitalik},`);
+  assert.deepEqual(parseWalletAssets(text, "wallets.csv", "ethereum", "native", (m) => warnings.push(m)), [ethNative]);
+  assert.deepEqual(parseWalletAssets(text, "wallets.csv", "bitcoin", undefined, (m) => warnings.push(m)), []);
+  const warning = 'Rows in wallets.csv that no source reads:\n  line 2: blockchain "Ethereum" is not ethereum, solana or bitcoin';
+  assert.deepEqual(warnings, [warning, warning]);
+});
+
+test("reads a repeated wallet asset once and warns with the lines that repeat it", () => {
+  const warnings: string[] = [];
+  const text = csv(
+    `ethereum,${vitalik},${usdc}`,
+    `ethereum,${vitalik},`,
+    `ethereum,${vitalik.toLowerCase()},${usdc.toLowerCase()}`,
+    `ethereum,${vitalik},`,
+  );
+  assert.deepEqual(parseWalletAssets(text, "wallets.csv", "ethereum", undefined, (m) => warnings.push(m)), [ethErc20, ethNative]);
+  assert.deepEqual(warnings, [
+    "Repeated rows in wallets.csv, read once each:\n  line 4 repeats line 2\n  line 5 repeats line 3",
+  ]);
+});

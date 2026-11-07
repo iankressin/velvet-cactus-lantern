@@ -3,6 +3,7 @@ import { isAddress as isSolanaAddress, type Address as SolanaAddress } from "@so
 import { isAddress as isEvmAddress, type Address as EvmAddress } from "viem";
 import { bitcoinAddress, type BitcoinAddress } from "#src/bitcoin/address.ts";
 import { toLower } from "#src/evm/address.ts";
+import { logger } from "#src/logger.ts";
 import { parseCsv, type CsvRow } from "#src/wallet-assets/csv.ts";
 
 /** One wallet and one asset whose balance a run reads. A native asset has no token address. */
@@ -56,6 +57,9 @@ const chains: Record<Blockchain, ChainRules> = {
   },
 };
 
+const isBlockchain = (value: string | undefined): value is Blockchain =>
+  value !== undefined && Object.hasOwn(chains, value);
+
 /** Native when token_address is empty or missing, else the chain's token type: null on a chain without tokens. */
 const assetTypeOf = (blockchain: Blockchain, row: CsvRow) =>
   row.record.tokenAddress ? chains[blockchain].tokenType : "native";
@@ -70,6 +74,26 @@ function picks(row: CsvRow, blockchain: Blockchain, assetType: AssetType | undef
   return assetType === undefined || type === null || type === assetType;
 }
 
+/** What is wrong with a picked row, in the words of the person who fixes the file. */
+function problemsWith(blockchain: Blockchain, row: CsvRow, columnCount: number): string[] {
+  // A short or long row's cells may sit under the wrong columns, so nothing else about it is checked.
+  if (row.cellCount !== columnCount) return [`has ${row.cellCount} cells; the header has ${columnCount}`];
+
+  const chain = chains[blockchain];
+  const { walletAddress = "", tokenAddress = "" } = row.record;
+  const problems: string[] = [];
+  if (chain.address(walletAddress) === null) {
+    problems.push(`wallet_address "${walletAddress}" is not ${chain.noun}`);
+  }
+  if (tokenAddress && chain.tokenType === null) {
+    problems.push(`${blockchain} has no tokens; leave token_address empty`);
+  } else if (tokenAddress && chain.address(tokenAddress) === null) {
+    problems.push(`token_address "${tokenAddress}" is not ${chain.noun}; leave it empty for ${chain.symbol}`);
+  }
+  return problems;
+}
+
+/** A valid row's wallet asset, its addresses in the form the raw tables store. */
 function walletAssetOf(blockchain: Blockchain, row: CsvRow): WalletAsset {
   const chain = chains[blockchain];
   const token = row.record.tokenAddress;
@@ -82,17 +106,51 @@ function walletAssetOf(blockchain: Blockchain, row: CsvRow): WalletAsset {
   } as WalletAsset;
 }
 
-/** The wallet assets in CSV text on `blockchain`, of `assetType` when given. `file` names the input in errors. */
+/**
+ * The wallet assets in CSV text on `blockchain`, of `assetType` when given. `file` names the input in
+ * errors. Only the rows this read picks can fail it. Rows on an unknown chain, which no read picks, and
+ * repeated rows go to `warn`.
+ */
 export function parseWalletAssets<B extends Blockchain, T extends AssetType<B> = AssetType<B>>(
   text: string,
   file: string,
   blockchain: B,
   assetType?: T,
+  warn: (message: string) => void = (message) => logger.warn(message),
 ): Picked<B, T>[] {
-  const { rows } = parseCsv(text, file, ["blockchain", "wallet_address", "token_address"]);
-  return rows
-    .filter((row) => picks(row, blockchain, assetType))
-    .map((row) => walletAssetOf(blockchain, row)) as Picked<B, T>[];
+  const { columns, rows } = parseCsv(text, file, ["blockchain", "wallet_address", "token_address"]);
+
+  const unread = rows
+    .filter((row) => !isBlockchain(row.record.blockchain))
+    .map((row) => `  line ${row.line}: blockchain "${row.record.blockchain ?? ""}" is not ethereum, solana or bitcoin`);
+  if (unread.length > 0) warn(`Rows in ${file} that no source reads:\n${unread.join("\n")}`);
+
+  const picked = rows.filter((row) => picks(row, blockchain, assetType));
+  const problems = picked.flatMap((row) =>
+    problemsWith(blockchain, row, columns.length).map((problem) => `  line ${row.line}: ${problem}`),
+  );
+  if (problems.length > 0) {
+    const read = assetType === undefined ? blockchain : `${blockchain} ${assetType}`;
+    throw new Error(`Invalid ${read} rows in ${file}:\n${problems.join("\n")}`);
+  }
+
+  const firstLines = new Map<string, number>();
+  const assets: WalletAsset[] = [];
+  const repeats: string[] = [];
+  for (const row of picked) {
+    const asset = walletAssetOf(blockchain, row);
+    const key = `${asset.walletAddress}:${asset.tokenAddress ?? ""}`;
+    const first = firstLines.get(key);
+    if (first === undefined) {
+      firstLines.set(key, row.line);
+      assets.push(asset);
+    } else {
+      repeats.push(`  line ${row.line} repeats line ${first}`);
+    }
+  }
+  if (repeats.length > 0) warn(`Repeated rows in ${file}, read once each:\n${repeats.join("\n")}`);
+
+  return assets as Picked<B, T>[];
 }
 
 /**
