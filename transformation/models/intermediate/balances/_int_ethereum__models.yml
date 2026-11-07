@@ -28,6 +28,9 @@ models:
         data_type: text
         description: The native asset name ('eth', 'sol', 'btc') or the token or mint address.
         data_tests: [not_null]
+      - name: decimals
+        data_type: integer
+        description: ETH's decimals, 18, on native rows. Null on ERC-20 rows, whose decimals latest_balances takes from tokens.
       - name: block_number
         data_type: bigint
         description: The block, or Solana slot, this balance was read at.

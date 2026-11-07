@@ -10,6 +10,6 @@ Ethereum hex addresses are lowercased in staging. Solana and Bitcoin addresses a
 
 The remaining steps, by hand:
 
-1. Add `int_<chain>_balances.sql` and its contract YAML, copied from an existing chain in `models/intermediate/balances/`. The contract names any missing or mistyped column at build time.
+1. Add `int_<chain>_balances.sql` and its contract YAML, copied from an existing chain in `models/intermediate/balances/`. Set `decimals` to the native asset's decimals on native rows and to null on token rows. The contract names any missing or mistyped column at build time.
 2. Add a `union all` branch for that model in `models/marts/balances/latest_balances.sql`.
 3. Add the chain to the `accepted_values` of `chain` in `models/marts/balances/_balances__models.yml`.
